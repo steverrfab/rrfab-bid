@@ -5,6 +5,7 @@ const cors = require('cors');
 // Initialize database (runs migrations + seed on import)
 const db = require('./db');
 const { requireAuth } = require('./lib/auth');
+const { isConfigured: smtpConfigured } = require('./lib/email');
 
 const app = express();
 app.use(cors({
@@ -13,18 +14,20 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-// Auth gate on all /api routes except whitelist in requireAuth
 app.use(requireAuth);
 
 // ---- Health ----
 app.get('/api/health', (req, res) => {
   const aiscCount = db.prepare('SELECT COUNT(*) as n FROM aisc_sections').get().n;
   const estCount = db.prepare('SELECT COUNT(*) as n FROM estimates').get().n;
+  const recipCount = db.prepare('SELECT COUNT(*) as n FROM notification_recipients').get().n;
   res.json({
     ok: true,
     service: 'rrfab-bid',
     aisc_sections: aiscCount,
     estimates: estCount,
+    notification_recipients: recipCount,
+    smtp_configured: smtpConfigured(),
     time: new Date().toISOString()
   });
 });
@@ -36,6 +39,7 @@ app.use('/api/estimates', require('./routes/estimates'));
 app.use('/api/estimates/:id/wages', require('./routes/wages'));
 app.use('/api/estimates/:id/proposal-pdf', require('./routes/proposal'));
 app.use('/api/template', require('./routes/template'));
+app.use('/api/recipients', require('./routes/recipients'));
 
 // ---- Root ----
 app.get('/', (req, res) => {
@@ -58,4 +62,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[rrfab-bid] listening on :${PORT}`);
+  console.log(`[rrfab-bid] SMTP configured: ${smtpConfigured()}`);
 });

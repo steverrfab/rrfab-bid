@@ -20,7 +20,8 @@ router.get('/', (req, res) => {
   const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?').all(id);
   const shapes = db.prepare('SELECT * FROM takeoff_shapes WHERE estimate_id = ?').all(id);
   const plates = db.prepare('SELECT * FROM takeoff_plates WHERE estimate_id = ?').all(id);
-  const computed = calc.compute(est, overrides, shapes, plates, aiscLookup);
+  const misc = db.prepare('SELECT * FROM takeoff_misc WHERE estimate_id = ?').all(id);
+  const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup);
   generateProposal(res, { estimate: est, computed });
 });
 

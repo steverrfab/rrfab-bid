@@ -13,12 +13,30 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migration runner. Runs every startup; statements must be idempotent.
+// We split each .sql file into individual statements so we can ignore expected
+// "duplicate column name" errors when ALTER TABLE ADD COLUMN runs a second time.
 function runMigrations() {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
   for (const f of files) {
     const sql = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
-    db.exec(sql);
+    const statements = sql
+      .split(/;\s*(?=\n|$)/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !/^--/.test(s));
+    for (const stmt of statements) {
+      try {
+        db.exec(stmt);
+      } catch (err) {
+        const msg = err.message || '';
+        if (/duplicate column name/i.test(msg)) {
+          // Column already added on a prior run; safe to skip.
+          continue;
+        }
+        throw err;
+      }
+    }
     console.log(`[db] migration applied: ${f}`);
   }
 }

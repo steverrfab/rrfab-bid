@@ -4,11 +4,12 @@ const multer = require('multer');
 const db = require('../db');
 const calc = require('../lib/calc');
 const { parseTemplate } = require('../lib/parser');
+const { generateProposalBuffer } = require('../lib/pdf');
+const { sendReadyToSubmit } = require('../lib/email');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-// AISC lookup helper for the calc engine
 const aiscStmt = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?');
 function aiscLookup(label) {
   if (!label) return 0;
@@ -16,7 +17,6 @@ function aiscLookup(label) {
   return row ? row.weight_per_ft : 0;
 }
 
-// All columns on estimates (kept central so insert/update stay in sync)
 const EST_COLS = [
   'project_name', 'job_number', 'bid_number', 'client_gc', 'bid_date',
   'prepared_by', 'scope', 'status',
@@ -28,6 +28,8 @@ const EST_COLS = [
   'oh_rate', 'contingency_rate', 'profit_rate', 'cgl_rate',
   'sales_tax_rate', 'tax_mode',
   'proposal_to', 'proposal_scope', 'proposal_exclusions', 'proposal_terms', 'proposal_submitted_by',
+  'proposal_line_1_desc', 'proposal_line_2_desc', 'proposal_line_3_desc',
+  'proposal_line_4_desc', 'proposal_line_5_desc', 'proposal_line_6_desc', 'proposal_line_7_desc',
   'ljb_tons', 'ljb_distance_miles', 'ljb_galv_lbs', 'ljb_aess_lbs',
   'ljb_aess_rate', 'ljb_galv_rate', 'ljb_joist_sub1', 'ljb_joist_sub2',
   'ljb_erect_sub1', 'ljb_erect_sub2', 'ljb_op_rate', 'ljb_shop_dwg_pages',
@@ -40,9 +42,10 @@ function loadFullEstimate(id) {
   const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?').all(id);
   const shapes = db.prepare('SELECT * FROM takeoff_shapes WHERE estimate_id = ? ORDER BY section_type, position').all(id);
   const plates = db.prepare('SELECT * FROM takeoff_plates WHERE estimate_id = ? ORDER BY position').all(id);
+  const misc = db.prepare('SELECT * FROM takeoff_misc WHERE estimate_id = ? ORDER BY position').all(id);
   const wages = db.prepare('SELECT * FROM wage_rates WHERE estimate_id = ?').all(id);
-  const computed = calc.compute(est, overrides, shapes, plates, aiscLookup);
-  return { estimate: est, overrides, shapes, plates, wages, computed };
+  const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup);
+  return { estimate: est, overrides, shapes, plates, misc, wages, computed };
 }
 
 // ---- LIST ----
@@ -61,7 +64,6 @@ router.post('/', (req, res) => {
   const stmt = db.prepare('INSERT INTO estimates DEFAULT VALUES');
   const info = stmt.run();
   const id = info.lastInsertRowid;
-  // If body has fields, apply them
   if (req.body && Object.keys(req.body).length) {
     applyUpdate(id, req.body);
   }
@@ -121,7 +123,6 @@ router.post('/:id/clone', (req, res) => {
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
 
-  // Copy related rows
   db.prepare(`
     INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
     SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
@@ -133,6 +134,10 @@ router.post('/:id/clone', (req, res) => {
   db.prepare(`
     INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
     SELECT ?, position, thickness, cost_factor, width_in, length_in, qty, notes FROM takeoff_plates WHERE estimate_id = ?
+  `).run(newId, id);
+  db.prepare(`
+    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
+    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes FROM takeoff_misc WHERE estimate_id = ?
   `).run(newId, id);
   db.prepare(`
     INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
@@ -149,7 +154,6 @@ router.put('/:id/material/:section', (req, res) => {
   const { weight_lb, cost_per_cwt } = req.body || {};
   if ((weight_lb == null || weight_lb === '' || +weight_lb <= 0)
       && (cost_per_cwt == null || cost_per_cwt === '' || +cost_per_cwt <= 0)) {
-    // Empty -> remove the override
     db.prepare('DELETE FROM material_overrides WHERE estimate_id = ? AND section = ?').run(id, section);
   } else {
     db.prepare(`
@@ -225,24 +229,56 @@ router.put('/:id/takeoff/plates', (req, res) => {
   res.json(loadFullEstimate(id));
 });
 
+// ---- TAKEOFF MISC METALS REPLACE ----
+router.put('/:id/takeoff/misc', (req, res) => {
+  const id = Number(req.params.id);
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM takeoff_misc WHERE estimate_id = ?').run(id);
+    const insert = db.prepare(`
+      INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    let pos = 0;
+    for (const r of rows) {
+      pos += 1;
+      insert.run(
+        id, r.position != null ? r.position : pos,
+        r.description || '',
+        +r.qty || 0,
+        +r.weight_each_lb || 0,
+        +r.cost_per_cwt || 0,
+        r.notes || ''
+      );
+    }
+    db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
+  });
+  tx();
+  res.json(loadFullEstimate(id));
+});
+
 // ---- UPLOAD TAKEOFF FILE (.xlsx template) ----
 router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!req.file) return res.status(400).json({ error: 'file required' });
     const parsed = await parseTemplate(req.file.buffer);
-    const mode = String(req.body.mode || 'replace'); // replace | append
+    const mode = String(req.body.mode || 'replace');
 
     const tx = db.transaction(() => {
       if (mode === 'replace') {
         db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
         db.prepare('DELETE FROM takeoff_plates WHERE estimate_id = ?').run(id);
+        db.prepare('DELETE FROM takeoff_misc WHERE estimate_id = ?').run(id);
       }
       const startShapePos = mode === 'append'
         ? (db.prepare('SELECT MAX(position) as p FROM takeoff_shapes WHERE estimate_id = ?').get(id).p || 0)
         : 0;
       const startPlatePos = mode === 'append'
         ? (db.prepare('SELECT MAX(position) as p FROM takeoff_plates WHERE estimate_id = ?').get(id).p || 0)
+        : 0;
+      const startMiscPos = mode === 'append'
+        ? (db.prepare('SELECT MAX(position) as p FROM takeoff_misc WHERE estimate_id = ?').get(id).p || 0)
         : 0;
 
       const insertShape = db.prepare(`
@@ -263,25 +299,60 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         id, startPlatePos + i + 1, r.thickness, r.cost_factor, r.width_in, r.length_in, r.qty, r.notes
       ));
 
+      const insertMisc = db.prepare(`
+        INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      (parsed.misc || []).forEach((r, i) => insertMisc.run(
+        id, startMiscPos + i + 1, r.description, r.qty, r.weight_each_lb, r.cost_per_cwt, r.notes
+      ));
+
       db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
     });
     tx();
 
     const bundle = loadFullEstimate(id);
-    res.json({ ...bundle, parsed: { shapes: parsed.shapes.length, plates: parsed.plates.length, errors: parsed.errors } });
+    res.json({
+      ...bundle,
+      parsed: {
+        shapes: parsed.shapes.length,
+        plates: parsed.plates.length,
+        misc: (parsed.misc || []).length,
+        errors: parsed.errors
+      }
+    });
   } catch (err) {
     console.error('upload error:', err);
     res.status(500).json({ error: err.message || 'parse failed' });
   }
 });
 
-// ---- SUBMIT BID ----
-router.post('/:id/submit', (req, res) => {
+// ---- READY TO SUBMIT (formerly SUBMIT BID) ----
+// Stamps the estimate as Submitted + sends a PDF email to active recipients.
+router.post('/:id/submit', async (req, res) => {
   const id = Number(req.params.id);
   const exists = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
   if (!exists) return res.status(404).json({ error: 'not found' });
+
   db.prepare("UPDATE estimates SET status = 'Submitted', submitted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
-  res.json(loadFullEstimate(id));
+  const bundle = loadFullEstimate(id);
+
+  // Pull active recipients
+  const recipients = db.prepare(`
+    SELECT email, name FROM notification_recipients WHERE active = 1 ORDER BY created_at ASC
+  `).all();
+
+  // Build PDF buffer for the email attachment
+  let pdfBuffer = null;
+  try {
+    pdfBuffer = await generateProposalBuffer(bundle);
+  } catch (err) {
+    console.error('[submit] PDF generation failed:', err);
+  }
+
+  const emailResult = await sendReadyToSubmit(bundle, recipients, pdfBuffer);
+
+  res.json({ ...bundle, notification: emailResult });
 });
 
 module.exports = router;
