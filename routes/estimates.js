@@ -118,8 +118,9 @@ router.post('/:id/clone', (req, res) => {
   if (!src) return res.status(404).json({ error: 'not found' });
 
   const cols = EST_COLS.filter(c => c !== 'submitted_at');
+  const suffix = src.status === 'Submitted' ? ' (rev)' : ' (copy)';
   const placeholders = cols.map(() => '?').join(',');
-  const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + ' (copy)' : src[c]));
+  const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + suffix : src[c]));
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
 
