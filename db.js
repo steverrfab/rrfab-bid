@@ -20,11 +20,14 @@ function runMigrations() {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
   for (const f of files) {
-    const sql = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
+    let sql = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
+    // Strip line comments before splitting so a leading "-- ..." doesn't make
+    // an entire CREATE TABLE statement look like a pure comment.
+    sql = sql.replace(/--[^\n]*/g, '');
     const statements = sql
       .split(/;\s*(?=\n|$)/)
       .map(s => s.trim())
-      .filter(s => s.length > 0 && !/^--/.test(s));
+      .filter(s => s.length > 0);
     for (const stmt of statements) {
       try {
         db.exec(stmt);
