@@ -33,7 +33,8 @@ const EST_COLS = [
   'ljb_tons', 'ljb_distance_miles', 'ljb_galv_lbs', 'ljb_aess_lbs',
   'ljb_aess_rate', 'ljb_galv_rate', 'ljb_joist_sub1', 'ljb_joist_sub2',
   'ljb_erect_sub1', 'ljb_erect_sub2', 'ljb_op_rate', 'ljb_shop_dwg_pages',
-  'submitted_at'
+  'submitted_at',
+  'notes'
 ];
 
 function loadFullEstimate(id) {

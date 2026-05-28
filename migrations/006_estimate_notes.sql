@@ -1,0 +1,1 @@
+ALTER TABLE estimates ADD COLUMN notes TEXT DEFAULT '';
