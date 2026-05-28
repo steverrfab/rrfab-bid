@@ -41,6 +41,7 @@ app.use('/api/estimates/:id/proposal-pdf', require('./routes/proposal'));
 app.use('/api/template', require('./routes/template'));
 app.use('/api/recipients', require('./routes/recipients'));
 app.use('/api/settings/prices', require('./routes/prices'));
+app.use('/api/contacts', require('./routes/contacts'));
 
 // ---- Root ----
 app.get('/', (req, res) => {
