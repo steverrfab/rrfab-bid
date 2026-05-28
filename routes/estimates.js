@@ -266,6 +266,13 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     const parsed = await parseTemplate(req.file.buffer);
     const mode = String(req.body.mode || 'replace');
 
+    // Apply price book defaults to any row that came in with a zero rate
+    const pb = {};
+    db.prepare('SELECT section_type, rate_per_cwt FROM price_book').all().forEach(r => { pb[r.section_type] = r.rate_per_cwt; });
+    parsed.shapes = parsed.shapes.map(r => ({ ...r, cost_factor: r.cost_factor || pb[r.section_type] || 0 }));
+    parsed.plates = parsed.plates.map(r => ({ ...r, cost_factor: r.cost_factor || pb['PLATE'] || 0 }));
+    parsed.misc   = (parsed.misc || []).map(r => ({ ...r, cost_per_cwt: r.cost_per_cwt || pb['MISC'] || 0 }));
+
     const tx = db.transaction(() => {
       if (mode === 'replace') {
         db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
@@ -328,8 +335,7 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// ---- READY TO SUBMIT (formerly SUBMIT BID) ----
-// Stamps the estimate as Submitted + sends a PDF email to active recipients.
+// ---- READY TO SUBMIT ----
 router.post('/:id/submit', async (req, res) => {
   const id = Number(req.params.id);
   const exists = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
@@ -338,12 +344,10 @@ router.post('/:id/submit', async (req, res) => {
   db.prepare("UPDATE estimates SET status = 'Submitted', submitted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
   const bundle = loadFullEstimate(id);
 
-  // Pull active recipients
   const recipients = db.prepare(`
     SELECT email, name FROM notification_recipients WHERE active = 1 ORDER BY created_at ASC
   `).all();
 
-  // Build PDF buffer for the email attachment
   let pdfBuffer = null;
   try {
     pdfBuffer = await generateProposalBuffer(bundle);

@@ -40,6 +40,7 @@ app.use('/api/estimates/:id/wages', require('./routes/wages'));
 app.use('/api/estimates/:id/proposal-pdf', require('./routes/proposal'));
 app.use('/api/template', require('./routes/template'));
 app.use('/api/recipients', require('./routes/recipients'));
+app.use('/api/settings/prices', require('./routes/prices'));
 
 // ---- Root ----
 app.get('/', (req, res) => {
