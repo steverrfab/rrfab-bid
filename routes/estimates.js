@@ -79,23 +79,56 @@ function loadFullEstimate(id) {
   return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions };
 }
 
+// ---- OWNERSHIP CHECK ----
+// For estimators: only allow access to their own estimates (or legacy estimates with no owner).
+// Admins and superadmins bypass this check entirely.
+function isAdminish(role) {
+  return role === 'admin' || role === 'superadmin';
+}
+
+function estimateOwnershipCheck(req, res, next) {
+  if (!req.user || isAdminish(req.user.role)) return next();
+  const id = Number(req.params.id);
+  if (!id) return next();
+  const est = db.prepare('SELECT created_by FROM estimates WHERE id = ?').get(id);
+  if (!est) return next(); // let the route return 404
+  if (est.created_by !== null && est.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+  next();
+}
+
+router.param('id', (req, res, next, id) => {
+  estimateOwnershipCheck(req, res, next);
+});
+
 // ---- LIST ----
 router.get('/', (req, res) => {
+  if (isAdminish(req.user.role)) {
+    const rows = db.prepare(`
+      SELECT id, project_name, job_number, bid_number, client_gc, bid_date,
+             status, updated_at, created_at, submitted_at
+      FROM estimates ORDER BY updated_at DESC
+    `).all();
+    return res.json({ rows });
+  }
+  // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
     SELECT id, project_name, job_number, bid_number, client_gc, bid_date,
            status, updated_at, created_at, submitted_at
     FROM estimates
+    WHERE created_by = ? OR created_by IS NULL
     ORDER BY updated_at DESC
-  `).all();
+  `).all(req.user.userId);
   res.json({ rows });
 });
 
 // ---- CREATE ----
 router.post('/', (req, res) => {
   const stmt = db.prepare(`INSERT INTO estimates
-    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00)`);
-  const info = stmt.run();
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?)`);
+  const info = stmt.run(req.user.userId);
   const id = info.lastInsertRowid;
   if (req.body && Object.keys(req.body).length) {
     applyUpdate(id, req.body);
@@ -444,4 +477,4 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-module.exports = { router, loadFullEstimate };
+module.exports = { router, loadFullEstimate, estimateOwnershipCheck };

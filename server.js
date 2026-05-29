@@ -4,8 +4,9 @@ const cors = require('cors');
 
 // Initialize database (runs migrations + seed on import)
 const db = require('./db');
-const { requireAuth } = require('./lib/auth');
+const { requireAuth, requireAdmin } = require('./lib/auth');
 const { isConfigured: smtpConfigured } = require('./lib/email');
+const { estimateOwnershipCheck } = require('./routes/estimates');
 
 const app = express();
 app.use(cors({
@@ -36,17 +37,19 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/aisc', require('./routes/aisc'));
 app.use('/api/estimates', require('./routes/estimates').router);
-app.use('/api/estimates/:id/wages', require('./routes/wages'));
-app.use('/api/estimates/:id/proposal-pdf', require('./routes/proposal'));
+// Estimate subrouters — estimators can only access their own estimates
+app.use('/api/estimates/:id/wages',          estimateOwnershipCheck, require('./routes/wages'));
+app.use('/api/estimates/:id/proposal-pdf',   estimateOwnershipCheck, require('./routes/proposal'));
+app.use('/api/estimates/:id/extras',         estimateOwnershipCheck, require('./routes/extras'));
+app.use('/api/estimates/:id/site-exclusions',estimateOwnershipCheck, require('./routes/exclusions').siteRouter);
+app.use('/api/estimates/:id/sov',            estimateOwnershipCheck, require('./routes/sov'));
 app.use('/api/template', require('./routes/template'));
-app.use('/api/recipients', require('./routes/recipients'));
-app.use('/api/settings/prices', require('./routes/prices'));
-app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api/feedback', require('./routes/feedback'));
-app.use('/api/estimates/:id/extras', require('./routes/extras'));
-app.use('/api/estimates/:id/site-exclusions', require('./routes/exclusions').siteRouter);
-app.use('/api/standard-exclusions', require('./routes/exclusions').stdRouter);
-app.use('/api/estimates/:id/sov', require('./routes/sov'));
+// Company settings — admin and superadmin only
+app.use('/api/recipients',          requireAdmin, require('./routes/recipients'));
+app.use('/api/settings/prices',     requireAdmin, require('./routes/prices'));
+app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
+app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
 
 // ---- Root ----
