@@ -269,7 +269,7 @@ router.put('/:id/takeoff/shapes', (req, res) => {
     db.prepare(
       `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
        VALUES (?, ?, NULL, NULL, 'takeoff')
-       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
     ).run(id, sec);
   }
   res.json(loadFullEstimate(id));
@@ -309,7 +309,7 @@ router.put('/:id/takeoff/plates', (req, res) => {
     db.prepare(
       `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
        VALUES (?, 'PL', NULL, NULL, 'takeoff')
-       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
     ).run(id);
   }
   res.json(loadFullEstimate(id));
@@ -420,7 +420,7 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       db.prepare(
         `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
          VALUES (?, ?, NULL, NULL, 'takeoff')
-         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
       ).run(id, sec);
     }
     const hasPlateData = db.prepare(
@@ -430,7 +430,7 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       db.prepare(
         `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
          VALUES (?, 'PL', NULL, NULL, 'takeoff')
-         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
       ).run(id);
     }
     const bundle = loadFullEstimate(id);
