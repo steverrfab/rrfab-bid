@@ -46,6 +46,7 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/estimates/:id/extras', require('./routes/extras'));
 app.use('/api/estimates/:id/site-exclusions', require('./routes/exclusions').siteRouter);
 app.use('/api/standard-exclusions', require('./routes/exclusions').stdRouter);
+app.use('/api/estimates/:id/sov', require('./routes/sov'));
 app.use('/api/users', require('./routes/users'));
 
 // ---- Root ----
@@ -66,8 +67,5 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'internal error' });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[rrfab-bid] listening on :${PORT}`);
-  console.log(`[rrfab-bid] SMTP configured: ${smtpConfigured()}`)
-});
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log('rrfab-bid listening on', PORT));

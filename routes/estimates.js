@@ -5,7 +5,7 @@ const db = require('../db');
 const calc = require('../lib/calc');
 const { parseTemplate } = require('../lib/parser');
 const { generateProposalBuffer } = require('../lib/pdf');
-const { sendReadyToSubmit } = require('../lib/email');
+const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -15,6 +15,32 @@ function aiscLookup(label) {
   if (!label) return 0;
   const row = aiscStmt.get(String(label).toUpperCase().replace(/\s+/g, ''));
   return row ? row.weight_per_ft : 0;
+}
+
+function buildSovItems(bundle) {
+  const e = bundle.estimate;
+  const c = bundle.computed;
+  const m = (1 + (+e.oh_rate || 0)) * (1 + (+e.contingency_rate || 0))
+          * (1 + (+e.profit_rate || 0)) * (1 + (+e.cgl_rate || 0));
+  const items = [
+    { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
+    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
+    { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: ((+e.struct_detailing || 0) + (+e.misc_detailing || 0) + (+e.pe_stamp || 0)) * m },
+    { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * m },
+    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0)) * m },
+    { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
+    { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
+  ];
+  let next = 8;
+  if ((+e.sub_joist_deck || 0) > 0)
+    items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * m });
+  if ((+e.sub_erection || 0) > 0)
+    items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * m });
+  (bundle.extras || []).forEach(x => {
+    const amt = (+x.qty || 0) * (+x.rate || 0) * m;
+    if (amt > 0) items.push({ item_no: String(next++), description: x.description || 'Additional Item', scheduled_value: amt });
+  });
+  return items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
 }
 
 const EST_COLS = [
@@ -86,12 +112,33 @@ router.get('/:id', (req, res) => {
 });
 
 // ---- UPDATE ----
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const exists = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
-  if (!exists) return res.status(404).json({ error: 'not found' });
+  const prev = db.prepare('SELECT id, status FROM estimates WHERE id = ?').get(id);
+  if (!prev) return res.status(404).json({ error: 'not found' });
   applyUpdate(id, req.body || {});
-  res.json(loadFullEstimate(id));
+  const bundle = loadFullEstimate(id);
+
+  // On transition to Won: auto-generate SOV if not already present, then email recipients
+  const newStatus = (req.body || {}).status;
+  if (newStatus === 'Won' && prev.status !== 'Won') {
+    const existingSov = db.prepare('SELECT id FROM sov_items WHERE estimate_id = ? LIMIT 1').get(id);
+    if (!existingSov) {
+      const sovItems = buildSovItems(bundle);
+      const ins = db.prepare(
+        'INSERT INTO sov_items (estimate_id, item_no, description, scheduled_value, position) VALUES (?,?,?,?,?)'
+      );
+      const tx = db.transaction(arr => {
+        for (const it of arr) ins.run(id, it.item_no, it.description, it.scheduled_value, it.position);
+      });
+      tx(sovItems);
+    }
+    // Notify recipients (fire-and-forget, don't block response)
+    const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
+    sendWonNotification(bundle, recipients).catch(err => console.error('[sov] email error:', err));
+  }
+
+  res.json(bundle);
 });
 
 function applyUpdate(id, body) {
@@ -296,75 +343,84 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         ? (db.prepare('SELECT MAX(position) as p FROM takeoff_misc WHERE estimate_id = ?').get(id).p || 0)
         : 0;
 
-      const insertShape = db.prepare(`
-        INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft,
-          l1,l2,l3,l4,l5,l6,l7,l8, notes)
+      const shapeInsert = db.prepare(`
+        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      parsed.shapes.forEach((r, i) => insertShape.run(
-        id, r.section_type, startShapePos + i + 1, r.section_name, r.cost_factor, r.drop_ft,
-        r.l1, r.l2, r.l3, r.l4, r.l5, r.l6, r.l7, r.l8, r.notes
-      ));
-
-      const insertPlate = db.prepare(`
+      (parsed.shapes || []).forEach((r, i) => {
+        shapeInsert.run(
+          id, startShapePos + i + 1,
+          r.section_type || '', r.section_name || '',
+          +r.cost_factor || 0, +r.drop_ft || 0,
+          +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
+          +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
+          r.notes || ''
+        );
+      });
+      const plateInsert = db.prepare(`
         INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      parsed.plates.forEach((r, i) => insertPlate.run(
-        id, startPlatePos + i + 1, r.thickness, r.cost_factor, r.width_in, r.length_in, r.qty, r.notes
-      ));
-
-      const insertMisc = db.prepare(`
+      (parsed.plates || []).forEach((r, i) => {
+        plateInsert.run(
+          id, startPlatePos + i + 1,
+          r.thickness || '', +r.cost_factor || 0,
+          +r.width_in || 0, +r.length_in || 0, +r.qty || 0, r.notes || ''
+        );
+      });
+      const miscInsert = db.prepare(`
         INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
-      (parsed.misc || []).forEach((r, i) => insertMisc.run(
-        id, startMiscPos + i + 1, r.description, r.qty, r.weight_each_lb, r.cost_per_cwt, r.notes
-      ));
-
+      (parsed.misc || []).forEach((r, i) => {
+        miscInsert.run(
+          id, startMiscPos + i + 1,
+          r.description || '', +r.qty || 0, +r.weight_each_lb || 0, +r.cost_per_cwt || 0, r.notes || ''
+        );
+      });
       db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
     });
     tx();
-
     const bundle = loadFullEstimate(id);
-    res.json({
-      ...bundle,
-      parsed: {
-        shapes: parsed.shapes.length,
-        plates: parsed.plates.length,
-        misc: (parsed.misc || []).length,
-        errors: parsed.errors
-      }
-    });
+    res.json({ ...bundle, parsed: {
+      shapes: (parsed.shapes || []).length,
+      plates: (parsed.plates || []).length,
+      misc:   (parsed.misc || []).length,
+      errors: parsed.errors || []
+    }});
   } catch (err) {
-    console.error('upload error:', err);
+    console.error('[upload]', err);
     res.status(500).json({ error: err.message || 'parse failed' });
   }
 });
 
-// ---- READY TO SUBMIT ----
-router.post('/:id/submit', async (req, res) => {
-  const id = Number(req.params.id);
-  const exists = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
-  if (!exists) return res.status(404).json({ error: 'not found' });
-
-  db.prepare("UPDATE estimates SET status = 'Submitted', submitted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
-  const bundle = loadFullEstimate(id);
-
-  const recipients = db.prepare(`
-    SELECT email, name FROM notification_recipients WHERE active = 1 ORDER BY created_at ASC
-  `).all();
-
-  let pdfBuffer = null;
-  try {
-    pdfBuffer = await generateProposalBuffer(bundle);
-  } catch (err) {
-    console.error('[submit] PDF generation failed:', err);
-  }
-
-  const emailResult = await sendReadyToSubmit(bundle, recipients, pdfBuffer);
-  res.json({ ...bundle, email: emailResult });
+// ---- AISC LOOKUP ----
+router.get('/aisc', (req, res) => {
+  const label = String(req.query.label || '').toUpperCase().replace(/\s+/g, '');
+  if (!label) return res.json({ found: false });
+  const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?').get(label);
+  if (row) return res.json({ found: true, label, weight_per_ft: row.weight_per_ft });
+  res.json({ found: false, label });
 });
 
-module.exports = router;
-module.exports.loadFullEstimate = loadFullEstimate;
+// ---- SUBMIT (send email + PDF) ----
+router.post('/:id/submit', async (req, res) => {
+  const id = Number(req.params.id);
+  const bundle = loadFullEstimate(id);
+  if (!bundle) return res.status(404).json({ error: 'not found' });
+
+  db.prepare("UPDATE estimates SET status = 'Submitted', submitted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
+  const updatedBundle = loadFullEstimate(id);
+
+  let pdfBuffer = null;
+  try { pdfBuffer = await generateProposalBuffer(updatedBundle); }
+  catch (e) { console.error('[submit] pdf error:', e); }
+
+  const recipients = db.prepare(
+    'SELECT email, name FROM notification_recipients WHERE active = 1 ORDER BY created_at ASC'
+  ).all();
+  const emailResult = await sendReadyToSubmit(updatedBundle, recipients, pdfBuffer);
+  res.json({ ...updatedBundle, email: emailResult });
+});
+
+module.exports = { router, loadFullEstimate };
