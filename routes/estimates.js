@@ -106,19 +106,24 @@ router.param('id', (req, res, next, id) => {
 router.get('/', (req, res) => {
   if (isAdminish(req.user.role)) {
     const rows = db.prepare(`
-      SELECT id, project_name, job_number, bid_number, client_gc, bid_date,
-             status, updated_at, created_at, submitted_at
-      FROM estimates ORDER BY updated_at DESC
+      SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
+             e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by,
+             u.name as owner_name, u.email as owner_email
+      FROM estimates e
+      LEFT JOIN users u ON u.id = e.created_by
+      ORDER BY e.updated_at DESC
     `).all();
     return res.json({ rows });
   }
   // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
-    SELECT id, project_name, job_number, bid_number, client_gc, bid_date,
-           status, updated_at, created_at, submitted_at
-    FROM estimates
-    WHERE created_by = ? OR created_by IS NULL
-    ORDER BY updated_at DESC
+    SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
+           e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by,
+           u.name as owner_name, u.email as owner_email
+    FROM estimates e
+    LEFT JOIN users u ON u.id = e.created_by
+    WHERE e.created_by = ? OR e.created_by IS NULL
+    ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows });
 });
@@ -475,6 +480,16 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ---- ASSIGN ESTIMATE ----  (admin/superadmin only)
+router.put('/:id/assign', (req, res) => {
+  if (!isAdminish(req.user.role)) return res.status(403).json({ error: 'Admin only.' });
+  const id = Number(req.params.id);
+  const { user_id } = req.body || {};
+  // user_id = null means unassign (back to legacy/no-owner)
+  db.prepare("UPDATE estimates SET created_by = ? WHERE id = ?").run(user_id || null, id);
+  res.json({ ok: true });
 });
 
 module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
