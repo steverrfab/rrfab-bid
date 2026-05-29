@@ -35,7 +35,7 @@ app.get('/api/health', (req, res) => {
 // ---- Routes ----
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/aisc', require('./routes/aisc'));
-app.use('/api/estimates', require('./routes/estimates'));
+app.use('/api/estimates', require('./routes/estimates').router);
 app.use('/api/estimates/:id/wages', require('./routes/wages'));
 app.use('/api/estimates/:id/proposal-pdf', require('./routes/proposal'));
 app.use('/api/template', require('./routes/template'));
