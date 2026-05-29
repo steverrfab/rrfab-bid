@@ -40,14 +40,14 @@ function runMigrations() {
         throw err;
       }
     }
-    console.log(`[db] migration applied: ${f}`);
+    console.log('[db] migration applied: ' + f);
   }
 }
 
 function seedAisc() {
   const count = db.prepare('SELECT COUNT(*) as n FROM aisc_sections').get().n;
   if (count > 0) {
-    console.log(`[db] aisc already seeded (${count} rows)`);
+    console.log('[db] aisc already seeded (' + count + ' rows)');
     return;
   }
   const seedPath = path.join(__dirname, 'seed', 'aisc.json');
@@ -57,10 +57,42 @@ function seedAisc() {
     for (const r of rows) insert.run(r.label, r.t_f || '', r.weight_per_ft);
   });
   tx(data);
-  console.log(`[db] aisc seeded: ${data.length} rows`);
+  console.log('[db] aisc seeded: ' + data.length + ' rows');
+}
+
+// Runs once on first deploy when the users table is empty.
+// Creates the first admin account and prints a setup link to the logs.
+function seedFirstAdmin() {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as n FROM users').get().n;
+    if (count > 0) return;
+
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const frontendUrl = process.env.FRONTEND_URL || 'https://bid.rrfabrication.org';
+
+    db.prepare("INSERT INTO users (email, name, role, active) VALUES (?, ?, 'admin', 0)")
+      .run('stevem@rrfabrication.org', 'Steve');
+    const userId = db.prepare('SELECT last_insert_rowid() as id').get().id;
+    db.prepare('INSERT INTO invites (user_id, token, expires_at) VALUES (?, ?, ?)')
+      .run(userId, token, expires);
+
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('[SETUP] First admin account created: stevem@rrfabrication.org');
+    console.log('[SETUP] Set your password (link valid 7 days):');
+    console.log('[SETUP] ' + frontendUrl + '/#/invite/' + token);
+    console.log('='.repeat(60));
+    console.log('');
+  } catch (err) {
+    // users table may not exist yet if migrations haven't run; safe to skip
+    if (!/no such table/i.test(err.message)) throw err;
+  }
 }
 
 runMigrations();
 seedAisc();
+seedFirstAdmin();
 
 module.exports = db;

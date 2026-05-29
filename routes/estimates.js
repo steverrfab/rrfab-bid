@@ -45,8 +45,9 @@ function loadFullEstimate(id) {
   const plates = db.prepare('SELECT * FROM takeoff_plates WHERE estimate_id = ? ORDER BY position').all(id);
   const misc = db.prepare('SELECT * FROM takeoff_misc WHERE estimate_id = ? ORDER BY position').all(id);
   const wages = db.prepare('SELECT * FROM wage_rates WHERE estimate_id = ?').all(id);
-  const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup);
-  return { estimate: est, overrides, shapes, plates, misc, wages, computed };
+  const extras = db.prepare('SELECT * FROM estimate_extras WHERE estimate_id = ? ORDER BY section, position').all(id);
+  const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup, extras);
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed };
 }
 
 // ---- LIST ----
@@ -62,7 +63,9 @@ router.get('/', (req, res) => {
 
 // ---- CREATE ----
 router.post('/', (req, res) => {
-  const stmt = db.prepare('INSERT INTO estimates (processing_rate) VALUES (0)');
+  const stmt = db.prepare(`INSERT INTO estimates
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00)`);
   const info = stmt.run();
   const id = info.lastInsertRowid;
   if (req.body && Object.keys(req.body).length) {
@@ -357,8 +360,8 @@ router.post('/:id/submit', async (req, res) => {
   }
 
   const emailResult = await sendReadyToSubmit(bundle, recipients, pdfBuffer);
-
-  res.json({ ...bundle, notification: emailResult });
+  res.json({ ...bundle, email: emailResult });
 });
 
 module.exports = router;
+module.exports.loadFullEstimate = loadFullEstimate;

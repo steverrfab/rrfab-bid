@@ -43,6 +43,8 @@ app.use('/api/recipients', require('./routes/recipients'));
 app.use('/api/settings/prices', require('./routes/prices'));
 app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api/feedback', require('./routes/feedback'));
+app.use('/api/estimates/:id/extras', require('./routes/extras'));
+app.use('/api/users', require('./routes/users'));
 
 // ---- Root ----
 app.get('/', (req, res) => {
@@ -65,5 +67,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[rrfab-bid] listening on :${PORT}`);
-  console.log(`[rrfab-bid] SMTP configured: ${smtpConfigured()}`);
+  console.log(`[rrfab-bid] SMTP configured: ${smtpConfigured()}`)
 });
