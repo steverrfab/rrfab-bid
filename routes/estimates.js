@@ -34,7 +34,8 @@ const EST_COLS = [
   'ljb_aess_rate', 'ljb_galv_rate', 'ljb_joist_sub1', 'ljb_joist_sub2',
   'ljb_erect_sub1', 'ljb_erect_sub2', 'ljb_op_rate', 'ljb_shop_dwg_pages',
   'submitted_at',
-  'notes'
+  'notes',
+  'sub_joist_deck', 'sub_erection'
 ];
 
 function loadFullEstimate(id) {

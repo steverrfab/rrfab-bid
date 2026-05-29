@@ -1,0 +1,2 @@
+ALTER TABLE estimates ADD COLUMN sub_joist_deck REAL NOT NULL DEFAULT 0;
+ALTER TABLE estimates ADD COLUMN sub_erection REAL NOT NULL DEFAULT 0;
