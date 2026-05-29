@@ -67,7 +67,7 @@ const EST_COLS = [
 function loadFullEstimate(id) {
   const est = db.prepare('SELECT * FROM estimates WHERE id = ?').get(id);
   if (!est) return null;
-  const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?').all(id);
+  const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt, source FROM material_overrides WHERE estimate_id = ?').all(id);
   const shapes = db.prepare('SELECT * FROM takeoff_shapes WHERE estimate_id = ? ORDER BY section_type, position').all(id);
   const plates = db.prepare('SELECT * FROM takeoff_plates WHERE estimate_id = ? ORDER BY position').all(id);
   const misc = db.prepare('SELECT * FROM takeoff_misc WHERE estimate_id = ? ORDER BY position').all(id);
@@ -412,6 +412,27 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
     });
     tx();
+    // Auto-release: after upload, flip source to 'takeoff' for any section with data.
+    const secsWithData = db.prepare(
+      `SELECT DISTINCT section_type FROM takeoff_shapes WHERE estimate_id = ? AND section_name != ''`
+    ).all(id).map(r => r.section_type).filter(Boolean);
+    for (const sec of secsWithData) {
+      db.prepare(
+        `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+         VALUES (?, ?, NULL, NULL, 'takeoff')
+         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+      ).run(id, sec);
+    }
+    const hasPlateData = db.prepare(
+      `SELECT 1 FROM takeoff_plates WHERE estimate_id = ? AND qty > 0 LIMIT 1`
+    ).get(id);
+    if (hasPlateData) {
+      db.prepare(
+        `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+         VALUES (?, 'PL', NULL, NULL, 'takeoff')
+         ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+      ).run(id);
+    }
     const bundle = loadFullEstimate(id);
     res.json({ ...bundle, parsed: {
       shapes: (parsed.shapes || []).length,
