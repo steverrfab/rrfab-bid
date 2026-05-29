@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
+const { sendAccessRequestNotification } = require('../lib/email');
 
 // POST /api/auth/login  { email, password }
 router.post('/login', (req, res) => {
@@ -77,6 +78,31 @@ router.post('/change-password', (req, res) => {
 
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
     .run(hashPassword(newPassword), user.id);
+  res.json({ ok: true });
+});
+
+// POST /api/auth/request-access  { name, email }  — public
+router.post('/request-access', async (req, res) => {
+  const { name, email } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required.' });
+  if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required.' });
+  const nameClean  = name.trim();
+  const emailClean = email.trim().toLowerCase();
+
+  // Reject if already an active user
+  const existing = db.prepare("SELECT active FROM users WHERE email = ? COLLATE NOCASE").get(emailClean);
+  if (existing && existing.active) {
+    return res.status(409).json({ error: 'That email already has an active account. Try logging in.' });
+  }
+  // Reject duplicate pending request
+  const dup = db.prepare("SELECT id FROM access_requests WHERE email = ? COLLATE NOCASE AND status = 'pending'").get(emailClean);
+  if (dup) {
+    return res.status(409).json({ error: 'A request from that email is already pending review.' });
+  }
+
+  db.prepare("INSERT INTO access_requests (name, email) VALUES (?, ?)").run(nameClean, emailClean);
+  const request = { name: nameClean, email: emailClean };
+  sendAccessRequestNotification(request).catch(err => console.error('[auth] access request email failed:', err.message));
   res.json({ ok: true });
 });
 

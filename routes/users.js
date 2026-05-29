@@ -88,4 +88,60 @@ router.put('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/users/access-requests  — list pending access requests
+router.get('/access-requests', (req, res) => {
+  const requests = db.prepare(
+    "SELECT * FROM access_requests WHERE status = 'pending' ORDER BY created_at DESC"
+  ).all();
+  res.json({ requests });
+});
+
+// POST /api/users/access-requests/:id/approve  { role }  — approve and send invite
+router.post('/access-requests/:id/approve', async (req, res) => {
+  const id = Number(req.params.id);
+  const role = req.body?.role || 'estimator';
+  if (!['admin', 'estimator'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+
+  const accessReq = db.prepare("SELECT * FROM access_requests WHERE id = ? AND status = 'pending'").get(id);
+  if (!accessReq) return res.status(404).json({ error: 'Request not found or already handled.' });
+
+  const emailClean = accessReq.email.toLowerCase();
+
+  // Create or refresh user (same logic as /invite)
+  let user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE').get(emailClean);
+  if (user && user.password_hash && user.active) {
+    // Already active — mark approved and return
+    db.prepare("UPDATE access_requests SET status = 'approved' WHERE id = ?").run(id);
+    return res.json({ ok: true, note: 'User already active.' });
+  }
+  if (!user) {
+    db.prepare("INSERT INTO users (email, name, role, active) VALUES (?, ?, ?, 0)")
+      .run(emailClean, accessReq.name, role);
+    user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE').get(emailClean);
+  } else {
+    db.prepare("UPDATE users SET role = ?, name = ?, password_hash = NULL, active = 0 WHERE id = ?")
+      .run(role, accessReq.name || user.name, user.id);
+  }
+
+  db.prepare("UPDATE invites SET used_at = datetime('now') WHERE user_id = ? AND used_at IS NULL").run(user.id);
+  const token = generateToken();
+  const expires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO invites (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expires);
+
+  const inviteUrl = FRONTEND_URL() + '/#/invite/' + token;
+  await sendInvite(emailClean, accessReq.name || emailClean, inviteUrl);
+
+  db.prepare("UPDATE access_requests SET status = 'approved' WHERE id = ?").run(id);
+  const requests = db.prepare("SELECT * FROM access_requests WHERE status = 'pending' ORDER BY created_at DESC").all();
+  res.json({ ok: true, requests });
+});
+
+// DELETE /api/users/access-requests/:id  — silently deny
+router.delete('/access-requests/:id', (req, res) => {
+  const id = Number(req.params.id);
+  db.prepare("UPDATE access_requests SET status = 'denied' WHERE id = ?").run(id);
+  const requests = db.prepare("SELECT * FROM access_requests WHERE status = 'pending' ORDER BY created_at DESC").all();
+  res.json({ ok: true, requests });
+});
+
 module.exports = router;
