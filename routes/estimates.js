@@ -206,17 +206,25 @@ router.post('/:id/clone', (req, res) => {
 router.put('/:id/material/:section', (req, res) => {
   const id = Number(req.params.id);
   const section = String(req.params.section).toUpperCase();
-  const { weight_lb, cost_per_cwt } = req.body || {};
-  if ((weight_lb == null || weight_lb === '' || +weight_lb <= 0)
-      && (cost_per_cwt == null || cost_per_cwt === '' || +cost_per_cwt <= 0)) {
-    db.prepare('DELETE FROM material_overrides WHERE estimate_id = ? AND section = ?').run(id, section);
+  const { weight_lb, cost_per_cwt, source } = req.body || {};
+  const src = source || 'manual';
+  if (src === 'takeoff' ||
+      ((weight_lb == null || weight_lb === '' || +weight_lb <= 0)
+      && (cost_per_cwt == null || cost_per_cwt === '' || +cost_per_cwt <= 0))) {
+    // Switching back to takeoff: set source='takeoff' (keep values for reference but don't use them)
+    db.prepare(`
+      INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+      VALUES (?, ?, ?, ?, 'takeoff')
+      ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'
+    `).run(id, section, weight_lb || null, cost_per_cwt || null);
   } else {
     db.prepare(`
-      INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+      VALUES (?, ?, ?, ?, 'manual')
       ON CONFLICT(estimate_id, section) DO UPDATE SET
         weight_lb = excluded.weight_lb,
-        cost_per_cwt = excluded.cost_per_cwt
+        cost_per_cwt = excluded.cost_per_cwt,
+        source = 'manual'
     `).run(id, section, weight_lb || null, cost_per_cwt || null);
   }
   db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
@@ -252,6 +260,18 @@ router.put('/:id/takeoff/shapes', (req, res) => {
     db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
   });
   tx();
+  // Auto-release manual overrides for sections that now have takeoff data.
+  // This implements "last touched wins": saving takeoff makes it the active source.
+  const secsWithData = db.prepare(
+    `SELECT DISTINCT section_type FROM takeoff_shapes WHERE estimate_id = ? AND section_name != ''`
+  ).all(id).map(r => r.section_type).filter(Boolean);
+  for (const sec of secsWithData) {
+    db.prepare(
+      `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+       VALUES (?, ?, NULL, NULL, 'takeoff')
+       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+    ).run(id, sec);
+  }
   res.json(loadFullEstimate(id));
 });
 
@@ -281,6 +301,17 @@ router.put('/:id/takeoff/plates', (req, res) => {
     db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
   });
   tx();
+  // If any plate rows were saved, auto-release manual override for PL section.
+  const hasPlateData = db.prepare(
+    `SELECT 1 FROM takeoff_plates WHERE estimate_id = ? AND qty > 0 LIMIT 1`
+  ).get(id);
+  if (hasPlateData) {
+    db.prepare(
+      `INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt, source)
+       VALUES (?, 'PL', NULL, NULL, 'takeoff')
+       ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff'`
+    ).run(id);
+  }
   res.json(loadFullEstimate(id));
 });
 
@@ -386,41 +417,10 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       shapes: (parsed.shapes || []).length,
       plates: (parsed.plates || []).length,
       misc:   (parsed.misc || []).length,
-      errors: parsed.errors || []
     }});
   } catch (err) {
-    console.error('[upload]', err);
-    res.status(500).json({ error: err.message || 'parse failed' });
+    res.status(500).json({ error: err.message });
   }
-});
-
-// ---- AISC LOOKUP ----
-router.get('/aisc', (req, res) => {
-  const label = String(req.query.label || '').toUpperCase().replace(/\s+/g, '');
-  if (!label) return res.json({ found: false });
-  const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?').get(label);
-  if (row) return res.json({ found: true, label, weight_per_ft: row.weight_per_ft });
-  res.json({ found: false, label });
-});
-
-// ---- SUBMIT (send email + PDF) ----
-router.post('/:id/submit', async (req, res) => {
-  const id = Number(req.params.id);
-  const bundle = loadFullEstimate(id);
-  if (!bundle) return res.status(404).json({ error: 'not found' });
-
-  db.prepare("UPDATE estimates SET status = 'Submitted', submitted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
-  const updatedBundle = loadFullEstimate(id);
-
-  let pdfBuffer = null;
-  try { pdfBuffer = await generateProposalBuffer(updatedBundle); }
-  catch (e) { console.error('[submit] pdf error:', e); }
-
-  const recipients = db.prepare(
-    'SELECT email, name FROM notification_recipients WHERE active = 1 ORDER BY created_at ASC'
-  ).all();
-  const emailResult = await sendReadyToSubmit(updatedBundle, recipients, pdfBuffer);
-  res.json({ ...updatedBundle, email: emailResult });
 });
 
 module.exports = { router, loadFullEstimate };
