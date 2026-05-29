@@ -47,7 +47,9 @@ function loadFullEstimate(id) {
   const wages = db.prepare('SELECT * FROM wage_rates WHERE estimate_id = ?').all(id);
   const extras = db.prepare('SELECT * FROM estimate_extras WHERE estimate_id = ? ORDER BY section, position').all(id);
   const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup, extras);
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed };
+  const standardExclusions = db.prepare('SELECT * FROM standard_exclusions ORDER BY position, id').all();
+  const siteExclusions = db.prepare('SELECT * FROM estimate_site_exclusions WHERE estimate_id = ? ORDER BY position, id').all(id);
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions };
 }
 
 // ---- LIST ----

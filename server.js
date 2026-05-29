@@ -44,6 +44,8 @@ app.use('/api/settings/prices', require('./routes/prices'));
 app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/estimates/:id/extras', require('./routes/extras'));
+app.use('/api/estimates/:id/site-exclusions', require('./routes/exclusions').siteRouter);
+app.use('/api/standard-exclusions', require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
 
 // ---- Root ----

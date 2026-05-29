@@ -21,7 +21,7 @@ function runMigrations() {
   const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
   for (const f of files) {
     let sql = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
-    // Strip line comments before splitting so a leading "-- ..." doesn't make
+    // Strip line comments before splitting so a leading "-- ..." does not make
     // an entire CREATE TABLE statement look like a pure comment.
     sql = sql.replace(/--[^\n]*/g, '');
     const statements = sql
@@ -86,7 +86,49 @@ function seedFirstAdmin() {
     console.log('='.repeat(60));
     console.log('');
   } catch (err) {
-    // users table may not exist yet if migrations haven't run; safe to skip
+    // users table may not exist yet if migrations have not run; safe to skip
+    if (!/no such table/i.test(err.message)) throw err;
+  }
+}
+
+const STANDARD_EXCLUSIONS = [
+  'Field verification of existing conditions',
+  'Fireproofing/intumescent coatings',
+  'Special inspections',
+  'Concrete/grout or dry pack',
+  'Permits/bonds/jobsite parking',
+  'Bolts or fasteners for other trades',
+  'Demolition of any kind',
+  'Temp. shoring or bracing',
+  'Galvanized material (UNO)/PRIMING OF GALVANIZED STEEL',
+  'Light gauge material',
+  'Paint other than shop primer',
+  'Testing or inspections',
+  'Steel prep. other than SP-2 or SP-3',
+  'Engineer stamp on shop drawings (UNO)',
+  'Setting or layout of anchor bolts/leveling plates/embed items',
+  'Roof or floor openings not shown or penetrations',
+  'Patching of existing roof area',
+  'Metal Deck on Light Gauge Framing',
+  'Wood connection bolts or steel plates',
+  'Unistrut material (furnish or install)',
+  'CMU Wall Supports (UNO)',
+  'Roof Frames not shown on Structural Drawings',
+  'Any item not listed in scope',
+  'Liquid applied thermo break materials'
+];
+
+function seedStandardExclusions() {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as n FROM standard_exclusions').get().n;
+    if (count > 0) return;
+    const insert = db.prepare('INSERT INTO standard_exclusions (text, position, active) VALUES (?, ?, 1)');
+    const tx = db.transaction((items) => {
+      items.forEach((text, i) => insert.run(text, i + 1));
+    });
+    tx(STANDARD_EXCLUSIONS);
+    console.log('[db] standard exclusions seeded: ' + STANDARD_EXCLUSIONS.length + ' rows');
+  } catch (err) {
     if (!/no such table/i.test(err.message)) throw err;
   }
 }
@@ -94,5 +136,6 @@ function seedFirstAdmin() {
 runMigrations();
 seedAisc();
 seedFirstAdmin();
+seedStandardExclusions();
 
 module.exports = db;
