@@ -27,8 +27,9 @@ router.get('/', (req, res) => {
 router.post('/invite', async (req, res) => {
   const { email, name = '', role = 'estimator' } = req.body || {};
   if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required.' });
-  if (!['admin', 'estimator'].includes(role)) {
-    return res.status(400).json({ error: 'Role must be admin or estimator.' });
+  const allowedInviteRoles = req.user.role === 'superadmin' ? ['superadmin', 'admin', 'estimator'] : ['estimator'];
+  if (!allowedInviteRoles.includes(role)) {
+    return res.status(403).json({ error: 'You do not have permission to invite with that role.' });
   }
   const emailClean = email.trim().toLowerCase();
 
@@ -73,8 +74,13 @@ router.put('/:id', (req, res) => {
   if (id === req.user.userId && active === 0) {
     return res.status(400).json({ error: 'You cannot deactivate your own account.' });
   }
-  if (role !== undefined && !['admin', 'estimator'].includes(role)) {
-    return res.status(400).json({ error: 'Role must be admin or estimator.' });
+  if (role !== undefined) {
+    const allowed = req.user.role === 'superadmin'
+      ? ['superadmin', 'admin', 'estimator']
+      : ['estimator'];
+    if (!allowed.includes(role)) {
+      return res.status(403).json({ error: 'You do not have permission to assign that role.' });
+    }
   }
 
   const sets = [];
