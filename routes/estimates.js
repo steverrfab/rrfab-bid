@@ -62,7 +62,7 @@ router.get('/', (req, res) => {
 
 // ---- CREATE ----
 router.post('/', (req, res) => {
-  const stmt = db.prepare('INSERT INTO estimates DEFAULT VALUES');
+  const stmt = db.prepare('INSERT INTO estimates (processing_rate) VALUES (0)');
   const info = stmt.run();
   const id = info.lastInsertRowid;
   if (req.body && Object.keys(req.body).length) {
