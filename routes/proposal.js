@@ -20,6 +20,15 @@ router.get('/', (req, res) => {
       'SELECT * FROM estimate_site_exclusions WHERE estimate_id = ? ORDER BY position, id'
     ).all(id);
 
+    // Enrich shapes with AISC weight per foot for scope page
+    const aiscLookup = (label) => {
+      if (!label) return 0;
+      const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?')
+        .get(String(label).toUpperCase().replace(/\s+/g, ''));
+      return row ? row.weight_per_ft : 0;
+    };
+    bundle.shapes = (bundle.shapes || []).map(r => ({ ...r, wpf: aiscLookup(r.section_name) }));
+
     generateProposal(res, bundle);
   } catch (err) {
     console.error('proposal error:', err);
