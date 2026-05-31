@@ -44,7 +44,7 @@ function buildSovItems(bundle) {
 }
 
 const EST_COLS = [
-  'project_name', 'job_number', 'bid_number', 'client_gc', 'bid_date',
+  'project_name', 'job_number', 'bid_number', 'client_gc', 'bid_date', 'proposal_date',
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',
@@ -203,6 +203,40 @@ router.delete('/:id', (req, res) => {
   const info = db.prepare('DELETE FROM estimates WHERE id = ?').run(id);
   if (info.changes === 0) return res.status(404).json({ error: 'not found' });
   res.json({ deleted: id });
+});
+
+
+// ---- SUBMIT ----
+router.post('/:id/submit', async (req, res) => {
+  const id = Number(req.params.id);
+  const est = db.prepare('SELECT id, proposal_date FROM estimates WHERE id = ?').get(id);
+  if (!est) return res.status(404).json({ error: 'not found' });
+
+  // Set proposal_date if not already set, then update status and submitted_at
+  const now = new Date().toISOString();
+  const todayDate = now.split('T')[0]; // YYYY-MM-DD format
+  const proposalDate = est.proposal_date || todayDate;
+
+  db.prepare(`
+    UPDATE estimates
+    SET status = 'Submitted',
+        submitted_at = ?,
+        proposal_date = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).run(now, proposalDate, id);
+
+  const bundle = loadFullEstimate(id);
+  const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
+
+  // Send email notification (fire-and-forget)
+  sendReadyToSubmit(bundle, recipients).catch(err => console.error('[submit] email error:', err));
+
+  // Return bundle with notification info (send doesn't wait for email)
+  res.json({
+    ...bundle,
+    notification: { ok: true, sent: recipients.length }
+  });
 });
 
 // ---- CLONE ----
