@@ -25,17 +25,17 @@ function buildSovItems(bundle) {
   const items = [
     { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
     { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
-    { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: ((+e.struct_detailing || 0) + (+e.misc_detailing || 0) + (+e.pe_stamp || 0)) * m },
-    { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * m },
-    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0)) * m },
+    { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
+    { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
+    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
     { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
     { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
   ];
   let next = 8;
   if ((+e.sub_joist_deck || 0) > 0)
-    items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * m });
+    items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   if ((+e.sub_erection || 0) > 0)
-    items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * m });
+    items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   (bundle.extras || []).forEach(x => {
     const amt = (+x.qty || 0) * (+x.rate || 0) * m;
     if (amt > 0) items.push({ item_no: String(next++), description: x.description || 'Additional Item', scheduled_value: amt });
@@ -61,7 +61,9 @@ const EST_COLS = [
   'ljb_erect_sub1', 'ljb_erect_sub2', 'ljb_op_rate', 'ljb_shop_dwg_pages',
   'submitted_at',
   'notes',
-  'sub_joist_deck', 'sub_erection'
+  'sub_joist_deck', 'sub_erection',
+  'struct_detailing_qty', 'misc_detailing_qty', 'pe_stamp_qty',
+  'freight_qty', 'erection_equip_qty', 'sub_joist_deck_qty', 'sub_erection_qty'
 ];
 
 function loadFullEstimate(id) {
