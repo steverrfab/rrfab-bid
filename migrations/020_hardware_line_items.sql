@@ -1,0 +1,9 @@
+-- Hardware line items (bolts, anchor bolts, fasteners, misc)
+ALTER TABLE estimates ADD COLUMN hw_bolts_weight REAL DEFAULT 0;
+ALTER TABLE estimates ADD COLUMN hw_bolts_rate REAL DEFAULT 0.50;
+ALTER TABLE estimates ADD COLUMN hw_anchor_weight REAL DEFAULT 0;
+ALTER TABLE estimates ADD COLUMN hw_anchor_rate REAL DEFAULT 0.50;
+ALTER TABLE estimates ADD COLUMN hw_fasteners_weight REAL DEFAULT 0;
+ALTER TABLE estimates ADD COLUMN hw_fasteners_rate REAL DEFAULT 0.50;
+ALTER TABLE estimates ADD COLUMN hw_misc_weight REAL DEFAULT 0;
+ALTER TABLE estimates ADD COLUMN hw_misc_rate REAL DEFAULT 0.50;
