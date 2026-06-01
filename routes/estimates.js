@@ -32,7 +32,7 @@ function buildSovItems(bundle) {
   // Material and finishes
   items.push(
     { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + c.hardware) * m },
+    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
     { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
     { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
     { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
@@ -57,7 +57,7 @@ const EST_COLS = [
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',
-  'handling_weight', 'handling_rate', 'hardware_weight', 'hardware_rate', 'galv_weight', 'galv_rate',
+  'handling_weight', 'handling_rate', 'galv_weight', 'galv_rate',
   'struct_detailing', 'misc_detailing', 'pe_stamp', 'freight',
   'erection_mh', 'erection_rate', 'erection_equip',
   'oh_rate', 'contingency_rate', 'profit_rate', 'cgl_rate',
