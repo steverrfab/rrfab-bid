@@ -471,14 +471,14 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         );
       });
       const plateInsert = db.prepare(`
-        INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, weight_lb, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       (parsed.plates || []).forEach((r, i) => {
         plateInsert.run(
           id, startPlatePos + i + 1,
           r.thickness || '', +r.cost_factor || 0,
-          +r.width_in || 0, +r.length_in || 0, +r.qty || 0, r.notes || ''
+          +r.width_in || 0, +r.length_in || 0, +r.qty || 0, +r.weight_lb || 0, r.notes || ''
         );
       });
       const miscInsert = db.prepare(`
