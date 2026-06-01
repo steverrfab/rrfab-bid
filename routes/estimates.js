@@ -428,7 +428,15 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     // Apply price book defaults to any row that came in with a zero rate
     const pb = {};
     db.prepare('SELECT section_type, rate_per_cwt FROM price_book').all().forEach(r => { pb[r.section_type] = r.rate_per_cwt; });
-    parsed.shapes = parsed.shapes.map(r => ({ ...r, cost_factor: r.cost_factor || pb[r.section_type] || 0 }));
+    parsed.shapes = parsed.shapes.map((r, idx) => {
+      const rate = r.cost_factor || pb[r.section_type] || 0;
+      // Warn if a shape has zero rate and empty section_name (likely AISC lookup failed)
+      if (rate === 0 && (!r.section_name || r.section_name.trim() === '')) {
+        if (!parsed.errors) parsed.errors = [];
+        parsed.errors.push('Shape row ' + (idx + 1) + ': AISC lookup failed, add manual weight/ft via Material Overrides');
+      }
+      return { ...r, cost_factor: rate };
+    });
     parsed.plates = parsed.plates.map(r => ({ ...r, cost_factor: r.cost_factor || pb['PLATE'] || 0 }));
     parsed.misc   = (parsed.misc || []).map(r => ({ ...r, cost_per_cwt: r.cost_per_cwt || pb['MISC'] || 0 }));
 
