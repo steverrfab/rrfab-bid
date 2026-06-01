@@ -515,7 +515,19 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
          ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
       ).run(id);
     }
-    const bundle = loadFullEstimate(id);
+
+    // Auto-populate weight fields from takeoff totals
+    let bundle = loadFullEstimate(id);
+    const totalWeight = bundle.computed.materialWeight || 0;
+    if (totalWeight > 0) {
+      db.prepare(`
+        UPDATE estimates
+        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(totalWeight, totalWeight, totalWeight, totalWeight, id);
+    }
+
+    bundle = loadFullEstimate(id);
     res.json({ ...bundle, parsed: {
       shapes: (parsed.shapes || []).length,
       plates: (parsed.plates || []).length,
