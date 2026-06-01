@@ -66,10 +66,11 @@ router.post('/invite', async (req, res) => {
   res.json({ ok: true, inviteUrl, emailResult });
 });
 
-// PUT /api/users/:id  { role?, active? }
+// PUT /api/users/:id  { role?, active?, password? }
 router.put('/:id', (req, res) => {
+  const { signToken, hashPassword } = require('../lib/auth');
   const id = Number(req.params.id);
-  const { role, active } = req.body || {};
+  const { role, active, password } = req.body || {};
 
   if (id === req.user.userId && active === 0) {
     return res.status(400).json({ error: 'You cannot deactivate your own account.' });
@@ -83,10 +84,21 @@ router.put('/:id', (req, res) => {
     }
   }
 
+  // Only superadmin can reset passwords
+  if (password !== undefined) {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can reset passwords.' });
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+  }
+
   const sets = [];
   const params = [];
   if (role !== undefined)   { sets.push('role = ?');   params.push(role); }
   if (active !== undefined) { sets.push('active = ?'); params.push(active ? 1 : 0); }
+  if (password !== undefined) { sets.push('password_hash = ?'); params.push(hashPassword(password)); }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
 
   params.push(id);
