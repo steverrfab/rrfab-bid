@@ -66,11 +66,15 @@ router.post('/invite', async (req, res) => {
   res.json({ ok: true, inviteUrl, emailResult });
 });
 
-// PUT /api/users/:id  { role?, active?, password? }
+// PUT /api/users/:id  { role?, active?, password?, name?, phone? }
 router.put('/:id', (req, res) => {
   const { signToken, hashPassword } = require('../lib/auth');
   const id = Number(req.params.id);
-  const { role, active, password } = req.body || {};
+  const { role, active, password, name, phone } = req.body || {};
+
+  // Users can only update their own profile (name, phone)
+  // Admins can manage roles/active status
+  // Superadmin can reset passwords
 
   if (id === req.user.userId && active === 0) {
     return res.status(400).json({ error: 'You cannot deactivate your own account.' });
@@ -99,6 +103,8 @@ router.put('/:id', (req, res) => {
   if (role !== undefined)   { sets.push('role = ?');   params.push(role); }
   if (active !== undefined) { sets.push('active = ?'); params.push(active ? 1 : 0); }
   if (password !== undefined) { sets.push('password_hash = ?'); params.push(hashPassword(password)); }
+  if (name !== undefined)   { sets.push('name = ?');   params.push(name ? name.trim() : null); }
+  if (phone !== undefined)  { sets.push('phone = ?');  params.push(phone ? phone.trim() : null); }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
 
   params.push(id);
