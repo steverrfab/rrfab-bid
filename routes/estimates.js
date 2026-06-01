@@ -22,15 +22,24 @@ function buildSovItems(bundle) {
   const c = bundle.computed;
   const m = (1 + (+e.oh_rate || 0)) * (1 + (+e.contingency_rate || 0))
           * (1 + (+e.profit_rate || 0)) * (1 + (+e.cgl_rate || 0));
-  const items = [
+  const items = [];
+
+  // Add scope as item 0 if present
+  if (e.scope && e.scope.trim()) {
+    items.push({ item_no: '0', description: 'Scope of Work: ' + e.scope, scheduled_value: 0 });
+  }
+
+  // Material and finishes
+  items.push(
     { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
+    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + c.hardware) * m },
     { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
     { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
     { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
     { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
     { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
-  ];
+  );
+
   let next = 8;
   if ((+e.sub_joist_deck || 0) > 0)
     items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
@@ -48,7 +57,7 @@ const EST_COLS = [
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',
-  'handling_weight', 'handling_rate', 'galv_weight', 'galv_rate',
+  'handling_weight', 'handling_rate', 'hardware_weight', 'hardware_rate', 'galv_weight', 'galv_rate',
   'struct_detailing', 'misc_detailing', 'pe_stamp', 'freight',
   'erection_mh', 'erection_rate', 'erection_equip',
   'oh_rate', 'contingency_rate', 'profit_rate', 'cgl_rate',
@@ -516,15 +525,25 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       ).run(id);
     }
 
-    // Auto-populate weight fields from takeoff totals
+    // Extract drawing numbers from parsed takeoff if available (external format, col B)
+    const drawingSet = new Set();
+    if (parsed.drawings) {
+      parsed.drawings.forEach(d => {
+        if (d && d.trim()) drawingSet.add(d.trim());
+      });
+    }
+    const drawingNumbers = Array.from(drawingSet).join(', ');
+
+    // Auto-populate weight fields and drawing scope
     let bundle = loadFullEstimate(id);
     const totalWeight = bundle.computed.materialWeight || 0;
-    if (totalWeight > 0) {
+    if (totalWeight > 0 || drawingNumbers) {
+      const scopeText = drawingNumbers ? 'Drawing(s): ' + drawingNumbers : '';
       db.prepare(`
         UPDATE estimates
-        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, updated_at = datetime('now')
+        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, scope = ?, updated_at = datetime('now')
         WHERE id = ?
-      `).run(totalWeight, totalWeight, totalWeight, totalWeight, id);
+      `).run(totalWeight, totalWeight, totalWeight, totalWeight, scopeText, id);
     }
 
     bundle = loadFullEstimate(id);
