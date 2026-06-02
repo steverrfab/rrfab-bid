@@ -3,6 +3,8 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../db');
 const calc = require('../lib/calc');
+const { computeProcess } = require('../lib/calc_process');
+const { parseKiss } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
@@ -72,7 +74,12 @@ const EST_COLS = [
   'notes',
   'sub_joist_deck', 'sub_erection',
   'struct_detailing_qty', 'misc_detailing_qty', 'pe_stamp_qty',
-  'freight_qty', 'erection_equip_qty', 'sub_joist_deck_qty', 'sub_erection_qty'
+  'freight_qty', 'erection_equip_qty', 'sub_joist_deck_qty', 'sub_erection_qty',
+  // Process-only mode
+  'job_type',
+  'po_labor_rate', 'po_cost_rate', 'po_beam_fab_rate', 'po_process_rate',
+  'po_galv_rate', 'po_trucking_rate', 'po_plate_rate', 'po_consumables_rate',
+  'po_op_pct', 'po_tax_pct'
 ];
 
 function loadFullEstimate(id) {
@@ -87,7 +94,11 @@ function loadFullEstimate(id) {
   const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup, extras);
   const standardExclusions = db.prepare('SELECT * FROM standard_exclusions ORDER BY position, id').all();
   const siteExclusions = db.prepare('SELECT * FROM estimate_site_exclusions WHERE estimate_id = ? ORDER BY position, id').all(id);
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions };
+  // Process-only data (empty for full jobs)
+  const processLines = db.prepare('SELECT * FROM process_only_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
+  const processAddcosts = db.prepare('SELECT * FROM process_only_addcosts WHERE estimate_id = ? ORDER BY position, id').all(id);
+  const processComputed = computeProcess(est, processLines, processAddcosts);
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed };
 }
 
 // ---- OWNERSHIP CHECK ----
@@ -184,9 +195,51 @@ router.post('/', (req, res) => {
   if (req.body && Object.keys(req.body).length) {
     applyUpdate(id, req.body);
   }
+  // Seed default rows for a brand-new process-only estimate.
+  if (req.body && req.body.job_type === 'process_only') {
+    seedProcessOnlyDefaults(id);
+  }
   const bundle = loadFullEstimate(id);
   res.status(201).json(bundle);
 });
+
+// Default line items and additional costs for a new process-only estimate,
+// matching the RR "Process Only" Excel template.
+const PO_DEFAULT_LINES = [
+  ['Columns Process & Fabricate', 'pf', 0],
+  ['Beams Process & Fabricate', 'pf', 0],
+  ['Beams Process Only', 'proc', 0],
+  ['Vertical Braces', 'pf', 1],
+  ['Angles Process', 'proc', 0],
+  ['Channels Process', 'proc', 0],
+  ['Angle roof frames', 'pf', 0],
+  ['Channels Process & Fabricate', 'pf', 0],
+  ['Tubes Process & Fabrication', 'manual', 0]
+];
+const PO_DEFAULT_ADDCOSTS = [
+  ['Plate Processing for Fab', 'lbs', 0.05, 0],
+  ['Angles Processing for Fab', 'lbs', 1, 0],
+  ['Tubes Process for Fab', 'lbs', 1, 0],
+  ['W shapes Process for Fab', 'lbs', 140, 0],
+  ['Consumables', 'lbs', 0.05, 0],
+  ['Trucking', 'loads', 2500, 0],
+  ['Paint', 'lbs', 0.02, 0],
+  ['Galvanize', 'lbs', 0.65, 0],
+  ['Other / Misc', 'flat $', 0, 1]
+];
+function seedProcessOnlyDefaults(id) {
+  const lineIns = db.prepare(`INSERT INTO process_only_lines
+    (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
+    VALUES (?, ?, ?, ?, 0, 0, 0, ?, 0)`);
+  const addIns = db.prepare(`INSERT INTO process_only_addcosts
+    (estimate_id, position, name, unit, input_qty, rate, is_flat)
+    VALUES (?, ?, ?, ?, 0, ?, ?)`);
+  const tx = db.transaction(() => {
+    PO_DEFAULT_LINES.forEach((r, i) => lineIns.run(id, i + 1, r[0], r[1], r[2]));
+    PO_DEFAULT_ADDCOSTS.forEach((r, i) => addIns.run(id, i + 1, r[0], r[1], r[2], r[3]));
+  });
+  tx();
+}
 
 // ---- GET ----
 router.get('/:id', (req, res) => {
@@ -603,6 +656,60 @@ router.put('/:id/assign', (req, res) => {
   // user_id = null means unassign (back to legacy/no-owner)
   db.prepare("UPDATE estimates SET created_by = ? WHERE id = ?").run(user_id || null, id);
   res.json({ ok: true });
+});
+
+// ===== PROCESS-ONLY ROUTES =====
+
+// Replace all process-only line items for an estimate.
+router.put('/:id/process-lines', (req, res) => {
+  const id = Number(req.params.id);
+  const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+  const ins = db.prepare(`INSERT INTO process_only_lines
+    (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM process_only_lines WHERE estimate_id = ?').run(id);
+    rows.forEach((r, i) => ins.run(
+      id, +r.position || i + 1, r.name || '', r.line_type || '',
+      +r.qty || 0, +r.labor_hrs || 0, +r.weight_lb || 0,
+      r.galv_on ? 1 : 0, +r.proc_manual || 0
+    ));
+    db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
+  });
+  tx();
+  res.json(loadFullEstimate(id));
+});
+
+// Replace all process-only additional costs for an estimate.
+router.put('/:id/process-addcosts', (req, res) => {
+  const id = Number(req.params.id);
+  const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+  const ins = db.prepare(`INSERT INTO process_only_addcosts
+    (estimate_id, position, name, unit, input_qty, rate, is_flat)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM process_only_addcosts WHERE estimate_id = ?').run(id);
+    rows.forEach((r, i) => ins.run(
+      id, +r.position || i + 1, r.name || '', r.unit || '',
+      +r.input_qty || 0, +r.rate || 0, r.is_flat ? 1 : 0
+    ));
+    db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
+  });
+  tx();
+  res.json(loadFullEstimate(id));
+});
+
+// Parse a Tekla KISS (.kss) file and return a flat list of pieces for staging.
+// Does NOT save; the front end stages, the user assigns a type, then PUT process-lines.
+router.post('/:id/process-import/kiss', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file required' });
+  try {
+    const text = req.file.buffer.toString('utf8');
+    const pieces = parseKiss(text, aiscLookup);
+    res.json({ pieces, count: pieces.length });
+  } catch (err) {
+    res.status(400).json({ error: 'Could not parse KISS file: ' + err.message });
+  }
 });
 
 module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
