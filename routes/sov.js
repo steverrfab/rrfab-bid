@@ -58,7 +58,7 @@ function autoGenerateItems(bundle) {
 // GET /api/estimates/:id/sov — list items, auto-generate if none exist yet
 router.get('/', (req, res) => {
   const id = Number(req.params.id);
-  const est = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
+  const est = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
 
   let items = db.prepare('SELECT * FROM sov_items WHERE estimate_id = ? ORDER BY position, id').all(id);
@@ -81,7 +81,7 @@ router.get('/', (req, res) => {
 // PUT /api/estimates/:id/sov — replace all items
 router.put('/', (req, res) => {
   const id = Number(req.params.id);
-  const est = db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
+  const est = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
 
   const items = Array.isArray(req.body) ? req.body : [];

@@ -5,7 +5,7 @@ const db = require('../db');
 const { loadFullEstimate } = require('./estimates');
 
 function getEstimate(id) {
-  return db.prepare('SELECT id FROM estimates WHERE id = ?').get(id);
+  return db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
 }
 
 // POST /api/estimates/:id/extras

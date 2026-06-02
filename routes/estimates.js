@@ -76,7 +76,7 @@ const EST_COLS = [
 ];
 
 function loadFullEstimate(id) {
-  const est = db.prepare('SELECT * FROM estimates WHERE id = ?').get(id);
+  const est = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return null;
   const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt, source FROM material_overrides WHERE estimate_id = ?').all(id);
   const shapes = db.prepare('SELECT * FROM takeoff_shapes WHERE estimate_id = ? ORDER BY section_type, position').all(id);
@@ -101,7 +101,7 @@ function estimateOwnershipCheck(req, res, next) {
   if (!req.user || isAdminish(req.user.role)) return next();
   const id = Number(req.params.id);
   if (!id) return next();
-  const est = db.prepare('SELECT created_by FROM estimates WHERE id = ?').get(id);
+  const est = db.prepare('SELECT created_by FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return next(); // let the route return 404
   if (est.created_by !== null && est.created_by !== req.user.userId) {
     return res.status(403).json({ error: 'Access denied.' });
@@ -118,10 +118,11 @@ router.get('/', (req, res) => {
   if (isAdminish(req.user.role)) {
     const rows = db.prepare(`
       SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-             e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by,
+             e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
+      WHERE e.deleted_at IS NULL
       ORDER BY e.updated_at DESC
     `).all();
     return res.json({ rows });
@@ -129,11 +130,11 @@ router.get('/', (req, res) => {
   // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-           e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by,
+           e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE e.created_by = ? OR e.created_by IS NULL
+    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows });
@@ -163,7 +164,7 @@ router.get('/:id', (req, res) => {
 // ---- UPDATE ----
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const prev = db.prepare('SELECT id, status FROM estimates WHERE id = ?').get(id);
+  const prev = db.prepare('SELECT id, status FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!prev) return res.status(404).json({ error: 'not found' });
   applyUpdate(id, req.body || {});
   const bundle = loadFullEstimate(id);
@@ -209,8 +210,9 @@ function applyUpdate(id, body) {
 // ---- DELETE ----
 router.delete('/:id', (req, res) => {
   const id = Number(req.params.id);
-  const info = db.prepare('DELETE FROM estimates WHERE id = ?').run(id);
-  if (info.changes === 0) return res.status(404).json({ error: 'not found' });
+  const prev = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!prev) return res.status(404).json({ error: 'not found' });
+  db.prepare("UPDATE estimates SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
   res.json({ deleted: id });
 });
 
@@ -218,7 +220,7 @@ router.delete('/:id', (req, res) => {
 // ---- SUBMIT ----
 router.post('/:id/submit', async (req, res) => {
   const id = Number(req.params.id);
-  const est = db.prepare('SELECT id, proposal_date FROM estimates WHERE id = ?').get(id);
+  const est = db.prepare('SELECT id, proposal_date FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
 
   // Set proposal_date if not already set, then update status and submitted_at
@@ -251,7 +253,7 @@ router.post('/:id/submit', async (req, res) => {
 // ---- CLONE ----
 router.post('/:id/clone', (req, res) => {
   const id = Number(req.params.id);
-  const src = db.prepare('SELECT * FROM estimates WHERE id = ?').get(id);
+  const src = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!src) return res.status(404).json({ error: 'not found' });
 
   const cols = EST_COLS.filter(c => c !== 'submitted_at');
