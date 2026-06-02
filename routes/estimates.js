@@ -166,7 +166,7 @@ router.get('/summary', (req, res) => {
       submitted_at: e.submitted_at || null,
       won_at: e.won_at || null,
       proposal_date: e.proposal_date || null,
-      due_date: e.due_date || null,
+      bid_date: e.bid_date || null,
       revenue,
       profit
     });
