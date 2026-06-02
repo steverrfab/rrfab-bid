@@ -140,6 +140,40 @@ router.get('/', (req, res) => {
   res.json({ rows });
 });
 
+// ---- DASHBOARD SUMMARY ----
+// Per-estimate financials + key dates for the dashboard cards.
+// revenue = total bid (sell price, before tax); profit = bid minus direct job cost.
+// Respects the same role visibility as the list endpoint.
+router.get('/summary', (req, res) => {
+  const idRows = isAdminish(req.user.role)
+    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL').all()
+    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL').all(req.user.userId);
+
+  const rows = [];
+  for (const { id } of idRows) {
+    const bundle = loadFullEstimate(id);
+    if (!bundle) continue;
+    const e = bundle.estimate;
+    const c = bundle.computed || {};
+    const revenue = +c.totalBid || 0;
+    const profit = revenue - (+c.directCost || 0);
+    rows.push({
+      id: e.id,
+      project_name: e.project_name || '',
+      bid_number: e.bid_number || '',
+      status: e.status || 'Draft',
+      created_at: e.created_at || null,
+      submitted_at: e.submitted_at || null,
+      won_at: e.won_at || null,
+      proposal_date: e.proposal_date || null,
+      due_date: e.due_date || null,
+      revenue,
+      profit
+    });
+  }
+  res.json({ rows });
+});
+
 // ---- CREATE ----
 router.post('/', (req, res) => {
   const stmt = db.prepare(`INSERT INTO estimates
@@ -172,6 +206,8 @@ router.put('/:id', async (req, res) => {
   // On transition to Won: auto-generate SOV if not already present, then email recipients
   const newStatus = (req.body || {}).status;
   if (newStatus === 'Won' && prev.status !== 'Won') {
+    // Stamp the date this bid was marked Won (drives the dashboard Won card time filter)
+    db.prepare("UPDATE estimates SET won_at = datetime('now') WHERE id = ?").run(id);
     const existingSov = db.prepare('SELECT id FROM sov_items WHERE estimate_id = ? LIMIT 1').get(id);
     if (!existingSov) {
       const sovItems = buildSovItems(bundle);
