@@ -19,6 +19,28 @@ function aiscLookup(label) {
   return row ? row.weight_per_ft : 0;
 }
 
+// ---- Bid number sequence ----
+// Shared series for all job types. Next base = highest base number used + 1,
+// floored at 2000. Revisions of a bid get a .N suffix (2000.1, 2000.2, ...).
+function nextBidNumber() {
+  const rows = db.prepare("SELECT bid_number FROM estimates WHERE bid_number IS NOT NULL AND bid_number != ''").all();
+  let maxBase = 1999;
+  for (const r of rows) {
+    const base = parseInt(String(r.bid_number).split('.')[0], 10);
+    if (Number.isFinite(base) && base > maxBase) maxBase = base;
+  }
+  return String(maxBase + 1);
+}
+function nextRevision(base) {
+  const rows = db.prepare("SELECT bid_number FROM estimates WHERE bid_number LIKE ?").all(base + '.%');
+  let maxRev = 0;
+  for (const r of rows) {
+    const rev = parseInt(String(r.bid_number).split('.')[1], 10);
+    if (Number.isFinite(rev) && rev > maxRev) maxRev = rev;
+  }
+  return base + '.' + (maxRev + 1);
+}
+
 function buildSovItems(bundle) {
   const e = bundle.estimate;
   const c = bundle.computed;
@@ -55,7 +77,7 @@ function buildSovItems(bundle) {
 }
 
 const EST_COLS = [
-  'project_name', 'job_number', 'bid_number', 'client_gc', 'bid_date', 'proposal_date',
+  'project_name', 'job_number', 'client_gc', 'bid_date', 'proposal_date',
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',
@@ -79,7 +101,9 @@ const EST_COLS = [
   'job_type',
   'po_labor_rate', 'po_cost_rate', 'po_beam_fab_rate', 'po_process_rate',
   'po_galv_rate', 'po_trucking_rate', 'po_plate_rate', 'po_consumables_rate',
-  'po_op_pct', 'po_tax_pct'
+  'po_op_pct', 'po_tax_pct',
+  // Hide-until-saved
+  'confirmed'
 ];
 
 function loadFullEstimate(id) {
@@ -133,7 +157,7 @@ router.get('/', (req, res) => {
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
-      WHERE e.deleted_at IS NULL
+      WHERE e.deleted_at IS NULL AND e.confirmed = 1
       ORDER BY e.updated_at DESC
     `).all();
     return res.json({ rows });
@@ -145,7 +169,7 @@ router.get('/', (req, res) => {
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL
+    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows });
@@ -157,8 +181,8 @@ router.get('/', (req, res) => {
 // Respects the same role visibility as the list endpoint.
 router.get('/summary', (req, res) => {
   const idRows = isAdminish(req.user.role)
-    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL').all()
-    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL').all(req.user.userId);
+    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1').all()
+    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1').all(req.user.userId);
 
   const rows = [];
   for (const { id } of idRows) {
@@ -188,8 +212,8 @@ router.get('/summary', (req, res) => {
 // ---- CREATE ----
 router.post('/', (req, res) => {
   const stmt = db.prepare(`INSERT INTO estimates
-    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?)`);
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 0)`);
   const info = stmt.run(req.user.userId);
   const id = info.lastInsertRowid;
   if (req.body && Object.keys(req.body).length) {
@@ -254,6 +278,11 @@ router.put('/:id', async (req, res) => {
   const prev = db.prepare('SELECT id, status FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!prev) return res.status(404).json({ error: 'not found' });
   applyUpdate(id, req.body || {});
+  // Assign a bid number the first time an estimate is confirmed (saved).
+  const cur = db.prepare('SELECT confirmed, bid_number FROM estimates WHERE id = ?').get(id);
+  if (cur && cur.confirmed === 1 && (!cur.bid_number || String(cur.bid_number).trim() === '')) {
+    db.prepare('UPDATE estimates SET bid_number = ? WHERE id = ?').run(nextBidNumber(), id);
+  }
   const bundle = loadFullEstimate(id);
 
   // On transition to Won: auto-generate SOV if not already present, then email recipients
@@ -320,6 +349,7 @@ router.post('/:id/submit', async (req, res) => {
   db.prepare(`
     UPDATE estimates
     SET status = 'Submitted',
+        confirmed = 1,
         submitted_at = ?,
         proposal_date = ?,
         updated_at = datetime('now')
@@ -351,6 +381,17 @@ router.post('/:id/clone', (req, res) => {
   const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + suffix : src[c]));
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
+
+  // Bid numbering: a revision (clone of a submitted/won/lost bid) gets the
+  // parent's base number with the next .N suffix and is shown immediately.
+  // A plain copy starts unnumbered and hidden until it's saved.
+  const isRevision = src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
+  if (isRevision) {
+    const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
+    db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft' WHERE id = ?").run(nextRevision(base), newId);
+  } else {
+    db.prepare("UPDATE estimates SET bid_number = '', confirmed = 0 WHERE id = ?").run(newId);
+  }
 
   db.prepare(`
     INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
