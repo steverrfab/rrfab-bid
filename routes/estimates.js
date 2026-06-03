@@ -190,12 +190,15 @@ router.get('/summary', (req, res) => {
     if (!bundle) continue;
     const e = bundle.estimate;
     const c = bundle.computed || {};
-    const revenue = +c.totalBid || 0;
-    const profit = revenue - (+c.directCost || 0);
+    const isPO = e.job_type === 'process_only';
+    const pc = bundle.processComputed || {};
+    const revenue = isPO ? (+pc.quoted || 0) : (+c.totalBid || 0);
+    const profit  = isPO ? (+pc.gpDollar || 0) : (revenue - (+c.directCost || 0));
     rows.push({
       id: e.id,
       project_name: e.project_name || '',
       bid_number: e.bid_number || '',
+      job_type: e.job_type || 'full',
       status: e.status || 'Draft',
       created_at: e.created_at || null,
       submitted_at: e.submitted_at || null,
