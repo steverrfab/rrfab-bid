@@ -226,6 +226,10 @@ router.post('/', (req, res) => {
   if (req.body && req.body.job_type === 'process_only') {
     seedProcessOnlyDefaults(id);
   }
+  // Default Prepared By to the signed-in user's name.
+  if (req.user && req.user.name) {
+    db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(req.user.name, id);
+  }
   const bundle = loadFullEstimate(id);
   res.status(201).json(bundle);
 });
