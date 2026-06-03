@@ -129,7 +129,7 @@ router.get('/', (req, res) => {
   if (isAdminish(req.user.role)) {
     const rows = db.prepare(`
       SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-             e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
+             e.status, e.job_type, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
@@ -141,7 +141,7 @@ router.get('/', (req, res) => {
   // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-           e.status, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
+           e.status, e.job_type, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
