@@ -32,6 +32,17 @@ function autoGenerateItems(bundle) {
     { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
   ];
 
+  // Item 0: project scope (and drawing numbers), so the SOV reflects the scope.
+  const scopeText = (e.proposal_scope || e.scope || '').trim();
+  const drawings = (e.drawing_numbers || '').trim();
+  if (scopeText || drawings) {
+    items.unshift({
+      item_no: '0',
+      description: 'Scope of Work: ' + (scopeText || '(see proposal)') + (drawings ? '  |  Drawings: ' + drawings : ''),
+      scheduled_value: 0
+    });
+  }
+
   // Add sub items if non-zero
   let next = 8;
   if ((+e.sub_joist_deck || 0) > 0) {

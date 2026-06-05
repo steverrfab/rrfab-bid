@@ -77,7 +77,7 @@ function buildSovItems(bundle) {
 }
 
 const EST_COLS = [
-  'project_name', 'job_number', 'client_gc', 'bid_date', 'proposal_date',
+  'project_name', 'job_number', 'client_gc', 'bid_date', 'proposal_date', 'drawing_numbers',
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',
@@ -405,8 +405,8 @@ router.post('/:id/clone', (req, res) => {
     SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
   `).run(newId, id);
   db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, notes)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, notes FROM takeoff_shapes WHERE estimate_id = ?
+    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
+    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes FROM takeoff_shapes WHERE estimate_id = ?
   `).run(newId, id);
   db.prepare(`
     INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
@@ -461,8 +461,8 @@ router.put('/:id/takeoff/shapes', (req, res) => {
     db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
       INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft,
-        l1,l2,l3,l4,l5,l6,l7,l8, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
@@ -476,6 +476,7 @@ router.put('/:id/takeoff/shapes', (req, res) => {
         +r.drop_ft || 0,
         +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
         +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
+        r.drawing || '',
         r.notes || ''
       );
     }
@@ -494,6 +495,9 @@ router.put('/:id/takeoff/shapes', (req, res) => {
        ON CONFLICT(estimate_id, section) DO UPDATE SET source = 'takeoff', weight_lb = NULL, cost_per_cwt = NULL`
     ).run(id, sec);
   }
+  // Roll the unique per-piece drawing numbers up to the estimate (for proposal/PDF/SOV).
+  const draws = db.prepare("SELECT DISTINCT drawing FROM takeoff_shapes WHERE estimate_id = ? AND drawing != ''").all(id).map(r => r.drawing);
+  db.prepare("UPDATE estimates SET drawing_numbers = ? WHERE id = ?").run([...new Set(draws)].join(', '), id);
   res.json(loadFullEstimate(id));
 });
 
@@ -605,8 +609,8 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         : 0;
 
       const shapeInsert = db.prepare(`
-        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, drawing, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       (parsed.shapes || []).forEach((r, i) => {
         shapeInsert.run(
@@ -615,6 +619,7 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
           +r.cost_factor || 0, +r.drop_ft || 0,
           +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
           +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
+          r.drawing || '',
           r.notes || ''
         );
       });
@@ -673,16 +678,19 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     }
     const drawingNumbers = Array.from(drawingSet).join(', ');
 
-    // Auto-populate weight fields and drawing scope
+    // Auto-populate weight fields; capture drawing numbers in their own field
+    // (no longer overwrites the user's scope).
     let bundle = loadFullEstimate(id);
     const totalWeight = bundle.computed.materialWeight || 0;
-    if (totalWeight > 0 || drawingNumbers) {
-      const scopeText = drawingNumbers ? 'Drawing(s): ' + drawingNumbers : '';
+    if (totalWeight > 0) {
       db.prepare(`
         UPDATE estimates
-        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, scope = ?, updated_at = datetime('now')
+        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, updated_at = datetime('now')
         WHERE id = ?
-      `).run(totalWeight, totalWeight, totalWeight, totalWeight, scopeText, id);
+      `).run(totalWeight, totalWeight, totalWeight, totalWeight, id);
+    }
+    if (drawingNumbers) {
+      db.prepare("UPDATE estimates SET drawing_numbers = ?, updated_at = datetime('now') WHERE id = ?").run(drawingNumbers, id);
     }
 
     bundle = loadFullEstimate(id);
