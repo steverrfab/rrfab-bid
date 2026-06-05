@@ -216,7 +216,7 @@ router.get('/summary', (req, res) => {
 router.post('/', (req, res) => {
   const stmt = db.prepare(`INSERT INTO estimates
     (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 0)`);
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1)`);
   const info = stmt.run(req.user.userId);
   const id = info.lastInsertRowid;
   if (req.body && Object.keys(req.body).length) {
