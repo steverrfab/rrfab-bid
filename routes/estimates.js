@@ -279,11 +279,74 @@ router.get('/:id', (req, res) => {
   res.json(bundle);
 });
 
+// ---- Estimate locks ----
+// One row in estimate_locks means someone is actively editing that estimate.
+// A lock is "stale" (treated as free) once last_seen is older than
+// LOCK_STALE_SECONDS. The frontend refreshes last_seen with a heartbeat while
+// the editor is open, and releases the lock when it closes. Admins/superadmins
+// can force-release anyone's lock.
+const LOCK_STALE_SECONDS = 120;
+
+// Returns the active (non-stale) lock for an estimate, or null if free/stale.
+function activeLock(estimateId) {
+  const row = db.prepare(
+    "SELECT estimate_id, user_id, user_name, locked_at, last_seen, " +
+    "CAST((julianday('now') - julianday(last_seen)) * 86400 AS INTEGER) AS age_seconds " +
+    "FROM estimate_locks WHERE estimate_id = ?"
+  ).get(estimateId);
+  if (!row) return null;
+  if (row.age_seconds >= LOCK_STALE_SECONDS) return null;
+  return row;
+}
+
+// Acquire or refresh a lock (also serves as the heartbeat).
+// Returns { ok: true } if you now hold it, or { ok: false, lockedBy, lockedAt }
+// if someone else holds a fresh lock.
+router.post('/:id/lock', (req, res) => {
+  const id = Number(req.params.id);
+  const me = req.user || {};
+  const existing = activeLock(id);
+  if (existing && existing.user_id !== me.userId) {
+    return res.json({ ok: false, lockedBy: existing.user_name || 'another user', lockedAt: existing.locked_at });
+  }
+  if (existing && existing.user_id === me.userId) {
+    db.prepare("UPDATE estimate_locks SET last_seen = datetime('now') WHERE estimate_id = ?").run(id);
+  } else {
+    db.prepare(
+      "INSERT INTO estimate_locks (estimate_id, user_id, user_name, locked_at, last_seen) " +
+      "VALUES (?,?,?,datetime('now'),datetime('now')) " +
+      "ON CONFLICT(estimate_id) DO UPDATE SET " +
+      "user_id=excluded.user_id, user_name=excluded.user_name, locked_at=datetime('now'), last_seen=datetime('now')"
+    ).run(id, me.userId, me.name || '');
+  }
+  res.json({ ok: true });
+});
+
+// Release a lock. You can release your own; admins/superadmins can force-release
+// anyone's (used by the "Take over" button).
+router.delete('/:id/lock', (req, res) => {
+  const id = Number(req.params.id);
+  const me = req.user || {};
+  const existing = db.prepare('SELECT user_id FROM estimate_locks WHERE estimate_id = ?').get(id);
+  if (!existing) return res.json({ ok: true });
+  const isAdmin = me.role === 'admin' || me.role === 'superadmin';
+  if (existing.user_id !== me.userId && !isAdmin) {
+    return res.status(403).json({ error: 'not your lock' });
+  }
+  db.prepare('DELETE FROM estimate_locks WHERE estimate_id = ?').run(id);
+  res.json({ ok: true });
+});
+
 // ---- UPDATE ----
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
   const prev = db.prepare('SELECT id, status FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!prev) return res.status(404).json({ error: 'not found' });
+  // Don't let a second person overwrite an estimate that someone else has open.
+  const lock = activeLock(id);
+  if (lock && lock.user_id !== (req.user && req.user.userId)) {
+    return res.status(423).json({ error: 'This bid is being edited by ' + (lock.user_name || 'another user') });
+  }
   applyUpdate(id, req.body || {});
   // Assign a bid number the first time an estimate is confirmed (saved).
   const cur = db.prepare('SELECT confirmed, bid_number FROM estimates WHERE id = ?').get(id);
