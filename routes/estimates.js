@@ -100,6 +100,7 @@ const EST_COLS = [
   // Process-only mode
   'job_type',
   'po_labor_rate', 'po_cost_rate', 'po_beam_fab_rate', 'po_process_rate',
+  'po_process_rate_beam', 'po_process_rate_channel', 'po_process_rate_angle',
   'po_galv_rate', 'po_trucking_rate', 'po_plate_rate', 'po_consumables_rate',
   'po_op_pct', 'po_tax_pct',
   // Hide-until-saved
