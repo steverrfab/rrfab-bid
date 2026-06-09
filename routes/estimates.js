@@ -406,6 +406,8 @@ router.delete('/:id', (req, res) => {
   const prev = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!prev) return res.status(404).json({ error: 'not found' });
   db.prepare("UPDATE estimates SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
+  // An alternate has no meaning without its parent: soft-delete them together.
+  db.prepare("UPDATE estimates SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL").run(id);
   res.json({ deleted: id });
 });
 
@@ -445,61 +447,165 @@ router.post('/:id/submit', async (req, res) => {
 });
 
 // ---- CLONE ----
+// Copy every child-table row from one estimate to another. This is exactly the
+// set of inserts the clone route has always done, pulled into a helper so both
+// a base bid and its alternates can be cloned the same way.
+function copyEstimateChildren(srcId, newId) {
+  db.prepare(`
+    INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
+    SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
+    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes FROM takeoff_shapes WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
+    SELECT ?, position, thickness, cost_factor, width_in, length_in, qty, notes FROM takeoff_plates WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
+    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes FROM takeoff_misc WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
+    SELECT ?, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct FROM wage_rates WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO process_only_lines (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
+    SELECT ?, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual FROM process_only_lines WHERE estimate_id = ?
+  `).run(newId, srcId);
+  db.prepare(`
+    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat)
+    SELECT ?, position, name, unit, input_qty, rate, is_flat FROM process_only_addcosts WHERE estimate_id = ?
+  `).run(newId, srcId);
+}
+
+// Clone one estimate row (all saveable columns except submitted_at) plus all its
+// child rows. Returns the new id. Status is forced to Draft and the project name
+// gets an optional suffix, matching the original clone behavior exactly.
+function cloneEstimateRow(src, projectSuffix) {
+  const cols = EST_COLS.filter(c => c !== 'submitted_at');
+  const placeholders = cols.map(() => '?').join(',');
+  const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + (projectSuffix || '') : src[c]));
+  const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
+  const newId = result.lastInsertRowid;
+  copyEstimateChildren(src.id, newId);
+  return newId;
+}
+
 router.post('/:id/clone', (req, res) => {
   const id = Number(req.params.id);
   const src = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!src) return res.status(404).json({ error: 'not found' });
 
-  const cols = EST_COLS.filter(c => c !== 'submitted_at');
   const suffix = src.status === 'Submitted' ? ' (rev)' : ' (copy)';
-  const placeholders = cols.map(() => '?').join(',');
-  const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + suffix : src[c]));
-  const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
-  const newId = result.lastInsertRowid;
+  let newId;
+  const tx = db.transaction(() => {
+    newId = cloneEstimateRow(src, suffix);
 
-  // Bid numbering: a revision (clone of a submitted/won/lost bid, or an
-  // explicit Revise request) gets the parent's base number with the next .N
-  // suffix and is shown immediately. A plain copy starts unnumbered and hidden
-  // until it's saved.
-  const forceRevision = !!(req.body && req.body.revision === true);
-  const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
-  if (isRevision) {
-    const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
-    db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft' WHERE id = ?").run(nextRevision(base), newId);
-  } else {
-    db.prepare("UPDATE estimates SET bid_number = '', confirmed = 0 WHERE id = ?").run(newId);
-  }
+    // Bid numbering: a revision (clone of a submitted/won/lost bid, or an
+    // explicit Revise request) gets the parent's base number with the next .N
+    // suffix and is shown immediately. A plain copy starts unnumbered and hidden
+    // until it's saved.
+    const forceRevision = !!(req.body && req.body.revision === true);
+    const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
+    if (isRevision) {
+      const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
+      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft' WHERE id = ?").run(nextRevision(base), newId);
+    } else {
+      db.prepare("UPDATE estimates SET bid_number = '', confirmed = 0 WHERE id = ?").run(newId);
+    }
 
-  db.prepare(`
-    INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
-    SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes FROM takeoff_shapes WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
-    SELECT ?, position, thickness, cost_factor, width_in, length_in, qty, notes FROM takeoff_plates WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
-    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes FROM takeoff_misc WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
-    SELECT ?, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct FROM wage_rates WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO process_only_lines (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
-    SELECT ?, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual FROM process_only_lines WHERE estimate_id = ?
-  `).run(newId, id);
-  db.prepare(`
-    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat)
-    SELECT ?, position, name, unit, input_qty, rate, is_flat FROM process_only_addcosts WHERE estimate_id = ?
-  `).run(newId, id);
+    // Bring alternates along: clone each alternate of the source base bid and
+    // attach the fresh copy to the new parent. Only base bids carry alternates.
+    if (!src.is_alternate) {
+      const alts = db.prepare(
+        'SELECT * FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+      ).all(id);
+      for (const alt of alts) {
+        const newAltId = cloneEstimateRow(alt, '');
+        db.prepare(
+          "UPDATE estimates SET is_alternate = 1, parent_estimate_id = ?, bid_number = '', confirmed = 1 WHERE id = ?"
+        ).run(newId, newAltId);
+      }
+    }
+  });
+  tx();
 
   res.status(201).json(loadFullEstimate(newId));
+});
+
+// ---- ALTERNATES ----
+// An alternate is a full estimate record linked to a parent base bid, so it
+// reuses every other estimate endpoint (takeoff, cost inputs, calc, proposal).
+// These routes only create, list, and remove alternates under a parent. Editing
+// an alternate (including renaming it via alt_label) uses the normal estimate
+// endpoints with the alternate's own id.
+
+// List alternates for a base bid, each with its computed sell price.
+router.get('/:id/alternates', (req, res) => {
+  const id = Number(req.params.id);
+  const rows = db.prepare(
+    'SELECT id, alt_label, alt_position, job_type, status FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+  ).all(id);
+  const alternates = rows.map(r => {
+    const bundle = loadFullEstimate(r.id);
+    const c = bundle ? (bundle.computed || {}) : {};
+    const pc = bundle ? (bundle.processComputed || {}) : {};
+    const isPO = (r.job_type === 'process_only');
+    const price = isPO ? (+pc.quoted || 0) : (+c.totalBid || 0);
+    return {
+      id: r.id,
+      alt_label: r.alt_label || '',
+      alt_position: r.alt_position || 0,
+      job_type: r.job_type || 'full',
+      status: r.status || 'Draft',
+      price
+    };
+  });
+  res.json({ alternates });
+});
+
+// Create a new blank alternate under a base bid, inheriting the parent's job type
+// and the same default rates a brand-new estimate gets.
+router.post('/:id/alternates', (req, res) => {
+  const id = Number(req.params.id);
+  const parent = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!parent) return res.status(404).json({ error: 'not found' });
+  if (parent.is_alternate) return res.status(400).json({ error: 'cannot add an alternate to an alternate' });
+
+  const jobType = parent.job_type || 'full';
+  const maxPos = db.prepare(
+    'SELECT COALESCE(MAX(alt_position), 0) AS m FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL'
+  ).get(id).m;
+  const label = (req.body && typeof req.body.alt_label === 'string' && req.body.alt_label.trim())
+    ? req.body.alt_label.trim()
+    : `Alternate ${maxPos + 1}`;
+
+  const stmt = db.prepare(`INSERT INTO estimates
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed,
+     is_alternate, parent_estimate_id, alt_label, alt_position, job_type, status)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1, 1, ?, ?, ?, ?, 'Draft')`);
+  const info = stmt.run(req.user.userId, id, label, maxPos + 1, jobType);
+  const altId = info.lastInsertRowid;
+  if (jobType === 'process_only') seedProcessOnlyDefaults(altId);
+  if (req.user && req.user.name) {
+    db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(req.user.name, altId);
+  }
+  res.status(201).json(loadFullEstimate(altId));
+});
+
+// Remove an alternate (soft delete). Must belong to the given parent.
+router.delete('/:id/alternates/:altId', (req, res) => {
+  const id = Number(req.params.id);
+  const altId = Number(req.params.altId);
+  const alt = db.prepare(
+    'SELECT id FROM estimates WHERE id = ? AND parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL'
+  ).get(altId, id);
+  if (!alt) return res.status(404).json({ error: 'not found' });
+  db.prepare("UPDATE estimates SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(altId);
+  res.json({ ok: true });
 });
 
 // ---- MATERIAL OVERRIDES ----
