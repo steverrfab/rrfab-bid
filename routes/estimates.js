@@ -105,7 +105,10 @@ const EST_COLS = [
   'po_galv_rate', 'po_trucking_rate', 'po_plate_rate', 'po_consumables_rate',
   'po_op_pct', 'po_tax_pct',
   // Hide-until-saved
-  'confirmed'
+  'confirmed',
+  // Alternates (user-editable fields; is_alternate/parent_estimate_id are set
+  // only by the dedicated alternate endpoints, never via a generic update)
+  'alt_label', 'alt_position'
 ];
 
 function loadFullEstimate(id) {
@@ -159,7 +162,7 @@ router.get('/', (req, res) => {
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
-      WHERE e.deleted_at IS NULL AND e.confirmed = 1
+      WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
       ORDER BY e.updated_at DESC
     `).all();
     return res.json({ rows });
@@ -171,7 +174,7 @@ router.get('/', (req, res) => {
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1
+    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows });
@@ -183,8 +186,8 @@ router.get('/', (req, res) => {
 // Respects the same role visibility as the list endpoint.
 router.get('/summary', (req, res) => {
   const idRows = isAdminish(req.user.role)
-    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1').all()
-    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1').all(req.user.userId);
+    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0').all()
+    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0').all(req.user.userId);
 
   const rows = [];
   for (const { id } of idRows) {
