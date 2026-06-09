@@ -483,6 +483,14 @@ router.post('/:id/clone', (req, res) => {
     INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
     SELECT ?, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct FROM wage_rates WHERE estimate_id = ?
   `).run(newId, id);
+  db.prepare(`
+    INSERT INTO process_only_lines (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
+    SELECT ?, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual FROM process_only_lines WHERE estimate_id = ?
+  `).run(newId, id);
+  db.prepare(`
+    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat)
+    SELECT ?, position, name, unit, input_qty, rate, is_flat FROM process_only_addcosts WHERE estimate_id = ?
+  `).run(newId, id);
 
   res.status(201).json(loadFullEstimate(newId));
 });
