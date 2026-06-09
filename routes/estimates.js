@@ -452,10 +452,12 @@ router.post('/:id/clone', (req, res) => {
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
 
-  // Bid numbering: a revision (clone of a submitted/won/lost bid) gets the
-  // parent's base number with the next .N suffix and is shown immediately.
-  // A plain copy starts unnumbered and hidden until it's saved.
-  const isRevision = src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
+  // Bid numbering: a revision (clone of a submitted/won/lost bid, or an
+  // explicit Revise request) gets the parent's base number with the next .N
+  // suffix and is shown immediately. A plain copy starts unnumbered and hidden
+  // until it's saved.
+  const forceRevision = !!(req.body && req.body.revision === true);
+  const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
   if (isRevision) {
     const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
     db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft' WHERE id = ?").run(nextRevision(base), newId);
