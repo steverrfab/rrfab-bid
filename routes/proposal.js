@@ -29,6 +29,14 @@ router.get('/', (req, res) => {
     };
     bundle.shapes = (bundle.shapes || []).map(r => ({ ...r, wpf: aiscLookup(r.section_name) }));
 
+    // Attach this bid's alternates (priced separately) so the PDF can list them.
+    const altRows = db.prepare(
+      'SELECT id FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+    ).all(id);
+    bundle.alternates = altRows
+      .map(r => loadFullEstimate(r.id))
+      .filter(Boolean);
+
     generateProposal(res, bundle);
   } catch (err) {
     console.error('proposal error:', err);

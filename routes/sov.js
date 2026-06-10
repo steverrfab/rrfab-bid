@@ -61,6 +61,23 @@ function autoGenerateItems(bundle) {
     }
   });
 
+  // Add alternates (priced separately) as their own SOV lines, at pre-tax value.
+  if (!e.is_alternate) {
+    const altRows = db.prepare(
+      'SELECT id, alt_label FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+    ).all(e.id);
+    altRows.forEach((r, ai) => {
+      const ab = loadFullEstimate(r.id);
+      if (!ab) return;
+      const isPO = ab.estimate.job_type === 'process_only';
+      const apc = ab.processComputed || {};
+      const ac = ab.computed || {};
+      const val = isPO ? ((apc.quoted || 0) - (apc.taxAmt || 0)) : (ac.totalBid || 0);
+      const label = (r.alt_label || '').trim() || ('Alternate ' + (ai + 1));
+      items.push({ item_no: 'ALT ' + (ai + 1), description: 'Add Alternate: ' + label, scheduled_value: val });
+    });
+  }
+
   // Filter out zero-value items (except item 1 which should always show)
   return items.filter((it, i) => i === 0 || it.scheduled_value > 0)
     .map((it, i) => ({ ...it, position: i }));

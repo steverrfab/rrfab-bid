@@ -111,9 +111,32 @@ const EST_COLS = [
   'alt_label', 'alt_position'
 ];
 
+// Rate and markup fields an alternate inherits from its base bid. An alternate
+// shares the bid's pricing assumptions; only its takeoff and finishes weights
+// are its own. Covers both full-job and process-only rate fields.
+const INHERITED_RATE_FIELDS = [
+  'fab_rate', 'processing_rate',
+  'paint_rate', 'consumables_rate', 'handling_rate', 'galv_rate',
+  'erection_rate',
+  'oh_rate', 'contingency_rate', 'profit_rate', 'cgl_rate',
+  'sales_tax_rate', 'tax_mode',
+  'po_labor_rate', 'po_cost_rate', 'po_beam_fab_rate', 'po_process_rate',
+  'po_process_rate_beam', 'po_process_rate_channel', 'po_process_rate_angle',
+  'po_pf_rate_beam', 'po_pf_rate_channel', 'po_pf_rate_angle',
+  'po_galv_rate', 'po_trucking_rate', 'po_plate_rate', 'po_consumables_rate',
+  'po_op_pct', 'po_tax_pct'
+];
+
 function loadFullEstimate(id) {
   const est = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return null;
+  // Alternates inherit the base bid's rates and markup, in memory only (never
+  // persisted). Base bids are never touched here, so their pricing is identical
+  // to before this feature existed.
+  if (est.is_alternate && est.parent_estimate_id) {
+    const parent = db.prepare('SELECT * FROM estimates WHERE id = ?').get(est.parent_estimate_id);
+    if (parent) for (const f of INHERITED_RATE_FIELDS) est[f] = parent[f];
+  }
   const overrides = db.prepare('SELECT section, weight_lb, cost_per_cwt, source FROM material_overrides WHERE estimate_id = ?').all(id);
   const shapes = db.prepare('SELECT * FROM takeoff_shapes WHERE estimate_id = ? ORDER BY section_type, position').all(id);
   const plates = db.prepare('SELECT * FROM takeoff_plates WHERE estimate_id = ? ORDER BY position').all(id);
@@ -590,9 +613,9 @@ router.post('/:id/alternates', (req, res) => {
   const info = stmt.run(req.user.userId, id, label, maxPos + 1, jobType);
   const altId = info.lastInsertRowid;
   if (jobType === 'process_only') seedProcessOnlyDefaults(altId);
-  if (req.user && req.user.name) {
-    db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(req.user.name, altId);
-  }
+  // Inherit the base bid's project identity so an alternate needs no project tab.
+  db.prepare("UPDATE estimates SET project_name = ?, client_gc = ?, bid_date = ?, job_number = ?, prepared_by = ? WHERE id = ?")
+    .run(parent.project_name || '', parent.client_gc || '', parent.bid_date || '', parent.job_number || '', parent.prepared_by || '', altId);
   res.status(201).json(loadFullEstimate(altId));
 });
 
