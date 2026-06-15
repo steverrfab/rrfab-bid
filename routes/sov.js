@@ -22,14 +22,21 @@ function autoGenerateItems(bundle) {
   }
   const m = mf();
 
+  // Per-line hide state from the client proposal mirrors onto the SOV: a line
+  // hidden on the proposal is dropped here too (by its line_key). Manual lines
+  // added on the proposal are appended below. Empty maps = unchanged behavior.
+  const vis = {};
+  (bundle.lineVisibility || []).forEach(v => { vis[v.line_key] = v; });
+  const isHidden = (key) => { const v = vis[key]; return !!(v && v.hidden); };
+
   const items = [
-    { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
-    { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
-    { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
-    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
-    { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
-    { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
+    { item_no: '1', _key: 'core:1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
+    { item_no: '2', _key: 'core:2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
+    { item_no: '3', _key: 'core:3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
+    { item_no: '4', _key: 'core:4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
+    { item_no: '5', _key: 'core:5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
+    { item_no: '6', _key: 'core:6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
+    { item_no: '7', _key: 'core:7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
   ];
 
   // Item 0: project scope (and drawing numbers), so the SOV reflects the scope.
@@ -46,10 +53,10 @@ function autoGenerateItems(bundle) {
   // Add sub items if non-zero
   let next = 8;
   if ((+e.sub_joist_deck || 0) > 0) {
-    items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
+    items.push({ item_no: String(next++), _key: 'sub:joist', description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   }
   if ((+e.sub_erection || 0) > 0) {
-    items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
+    items.push({ item_no: String(next++), _key: 'sub:erection', description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   }
 
   // Add any estimate extras
@@ -57,7 +64,17 @@ function autoGenerateItems(bundle) {
   extras.forEach(x => {
     const amt = (+x.qty || 0) * (+x.rate || 0) * m;
     if (amt > 0) {
-      items.push({ item_no: String(next++), description: x.description || 'Additional Item', scheduled_value: amt });
+      items.push({ item_no: String(next++), _key: 'extra:' + x.id, description: x.description || 'Additional Item', scheduled_value: amt });
+    }
+  });
+
+  // Manually added proposal lines that are visible (amount is already a final
+  // pre-tax figure, so it is not marked up). Hidden manual lines are skipped.
+  (bundle.manualLines || []).forEach(ml => {
+    if (ml.hidden) return;
+    const amt = +ml.amount || 0;
+    if (amt > 0) {
+      items.push({ item_no: String(next++), description: ml.description || 'Additional Item', scheduled_value: amt });
     }
   });
 
@@ -78,9 +95,12 @@ function autoGenerateItems(bundle) {
     });
   }
 
-  // Filter out zero-value items (except item 1 which should always show)
-  return items.filter((it, i) => i === 0 || it.scheduled_value > 0)
-    .map((it, i) => ({ ...it, position: i }));
+  // Drop lines hidden on the proposal, then zero-value items (except the first
+  // shown line), then strip the internal _key before returning.
+  return items
+    .filter(it => !(it._key && isHidden(it._key)))
+    .filter((it, i) => i === 0 || it.scheduled_value > 0)
+    .map((it, i) => { const { _key, ...rest } = it; return { ...rest, position: i }; });
 }
 
 // GET /api/estimates/:id/sov — list items, auto-generate if none exist yet

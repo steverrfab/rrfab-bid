@@ -143,6 +143,11 @@ function loadFullEstimate(id) {
   const misc = db.prepare('SELECT * FROM takeoff_misc WHERE estimate_id = ? ORDER BY position').all(id);
   const wages = db.prepare('SELECT * FROM wage_rates WHERE estimate_id = ?').all(id);
   const extras = db.prepare('SELECT * FROM estimate_extras WHERE estimate_id = ? ORDER BY section, position').all(id);
+  // Client-proposal line edits: manually added lines and per-line hide state.
+  // Empty for estimates that have never used the feature, so the proposal/SOV
+  // and totals are unchanged from before.
+  const manualLines = db.prepare('SELECT * FROM proposal_manual_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
+  const lineVisibility = db.prepare('SELECT * FROM proposal_line_visibility WHERE estimate_id = ?').all(id);
   const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup, extras);
   const standardExclusions = db.prepare('SELECT * FROM standard_exclusions ORDER BY position, id').all();
   const siteExclusions = db.prepare('SELECT * FROM estimate_site_exclusions WHERE estimate_id = ? ORDER BY position, id').all(id);
@@ -150,7 +155,7 @@ function loadFullEstimate(id) {
   const processLines = db.prepare('SELECT * FROM process_only_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processAddcosts = db.prepare('SELECT * FROM process_only_addcosts WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processComputed = computeProcess(est, processLines, processAddcosts);
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed };
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility };
 }
 
 // ---- OWNERSHIP CHECK ----

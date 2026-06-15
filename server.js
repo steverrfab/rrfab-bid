@@ -43,6 +43,7 @@ app.use('/api/estimates/:id/proposal-pdf',   estimateOwnershipCheck, require('./
 app.use('/api/estimates/:id/extras',         estimateOwnershipCheck, require('./routes/extras'));
 app.use('/api/estimates/:id/site-exclusions',estimateOwnershipCheck, require('./routes/exclusions').siteRouter);
 app.use('/api/estimates/:id/sov',            estimateOwnershipCheck, require('./routes/sov'));
+app.use('/api/estimates/:id/proposal-lines', estimateOwnershipCheck, require('./routes/proposal_lines'));
 app.use('/api/template', require('./routes/template'));
 app.use('/api/feedback', require('./routes/feedback'));
 // Company settings — admin and superadmin only

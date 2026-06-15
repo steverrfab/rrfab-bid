@@ -2,6 +2,7 @@
 const express = require('express');
 const { loadFullEstimate } = require('./estimates');
 const { generateProposal } = require('../lib/pdf');
+const { buildProposalView } = require('../lib/proposal_lines');
 
 const router = express.Router({ mergeParams: true });
 
@@ -10,6 +11,14 @@ router.get('/', (req, res) => {
   try {
     const bundle = loadFullEstimate(id);
     if (!bundle) return res.status(404).json({ error: 'not found' });
+
+    // Block the PDF while any hidden line still has no in-total/excluded choice,
+    // so a half-finished edit can never produce a wrong total.
+    const view = buildProposalView(bundle);
+    if (view.pending > 0) {
+      return res.status(409).json({ error: 'pending_line_choice', pending: view.pending,
+        message: 'One or more hidden lines still need an "in total" or "excluded" choice before the PDF can be generated.' });
+    }
 
     // Load exclusions and attach to bundle
     const db = require('../db');
