@@ -152,6 +152,9 @@ function loadFullEstimate(id) {
   // and totals are unchanged from before.
   const manualLines = db.prepare('SELECT * FROM proposal_manual_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
   const lineVisibility = db.prepare('SELECT * FROM proposal_line_visibility WHERE estimate_id = ?').all(id);
+  // Editable client-facing breakdown overrides (where the price-to-win discount
+  // lands, per line). Empty = scaled default.
+  const clientLines = db.prepare('SELECT * FROM proposal_client_lines WHERE estimate_id = ?').all(id);
   const computed = calc.compute(est, overrides, shapes, plates, misc, aiscLookup, extras);
   const standardExclusions = db.prepare('SELECT * FROM standard_exclusions ORDER BY position, id').all();
   const siteExclusions = db.prepare('SELECT * FROM estimate_site_exclusions WHERE estimate_id = ? ORDER BY position, id').all(id);
@@ -159,7 +162,7 @@ function loadFullEstimate(id) {
   const processLines = db.prepare('SELECT * FROM process_only_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processAddcosts = db.prepare('SELECT * FROM process_only_addcosts WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processComputed = computeProcess(est, processLines, processAddcosts);
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility };
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines };
 }
 
 // ---- OWNERSHIP CHECK ----
@@ -229,11 +232,23 @@ router.get('/summary', (req, res) => {
     const c = bundle.computed || {};
     const isPO = e.job_type === 'process_only';
     const pc = bundle.processComputed || {};
-    // Adjusted for price-to-win, hidden/excluded lines, and manual lines.
-    // With nothing overridden this equals the old cost-plus revenue/profit.
-    const view = buildProposalView(bundle);
-    const revenue = isPO ? view.total : view.finalTotal;
-    const profit  = view.marginDollars;
+    // Price to win is the ONLY thing that adjusts dashboard revenue/profit.
+    // When it is blank, these are byte-for-byte the old cost-plus numbers, so
+    // no existing bid moves (hide/exclude do not affect the dashboard).
+    const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
+    let revenue, profit;
+    if (isPO) {
+      if (ptw != null) {
+        revenue = ptw + ptw * (+e.po_tax_pct || 0);
+        profit  = revenue - (+pc.yourCost || 0);
+      } else {
+        revenue = +pc.quoted || 0;
+        profit  = +pc.gpDollar || 0;
+      }
+    } else {
+      revenue = ptw != null ? ptw : (+c.totalBid || 0);
+      profit  = revenue - (+c.directCost || 0);
+    }
     rows.push({
       id: e.id,
       project_name: e.project_name || '',
