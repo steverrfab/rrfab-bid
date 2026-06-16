@@ -86,7 +86,7 @@ const EST_COLS = [
   'erection_mh', 'erection_rate', 'erection_equip',
   'oh_rate', 'contingency_rate', 'profit_rate', 'cgl_rate',
   'sales_tax_rate', 'tax_mode',
-  'proposal_to', 'proposal_scope', 'proposal_exclusions', 'proposal_terms', 'proposal_submitted_by',
+  'proposal_to', 'proposal_scope', 'proposal_exclusions', 'proposal_terms', 'proposal_submitted_by', 'proposal_notes',
   'proposal_line_1_desc', 'proposal_line_2_desc', 'proposal_line_3_desc',
   'proposal_line_4_desc', 'proposal_line_5_desc', 'proposal_line_6_desc', 'proposal_line_7_desc',
   'ljb_tons', 'ljb_distance_miles', 'ljb_galv_lbs', 'ljb_aess_lbs',
