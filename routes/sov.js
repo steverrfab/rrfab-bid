@@ -4,6 +4,7 @@ const router = express.Router({ mergeParams: true });
 const db = require('../db');
 const { requireAuth } = require('../lib/auth');
 const { loadFullEstimate } = require('./estimates');
+const { buildProposalView } = require('../lib/proposal_lines');
 const { generateSov } = require('../lib/sov_pdf');
 
 router.use(requireAuth);
@@ -95,12 +96,19 @@ function autoGenerateItems(bundle) {
     });
   }
 
+  // If a price-to-win override is set, scale the scheduled values so the SOV
+  // foots to the quoted contract amount instead of the cost-plus total.
+  const view = buildProposalView(bundle);
+  const scale = (view.priceToWin != null && view.computedTotal > 0)
+    ? (view.finalTotal / view.computedTotal)
+    : 1;
+
   // Drop lines hidden on the proposal, then zero-value items (except the first
-  // shown line), then strip the internal _key before returning.
+  // shown line), apply the price-to-win scale, then strip the internal _key.
   return items
     .filter(it => !(it._key && isHidden(it._key)))
     .filter((it, i) => i === 0 || it.scheduled_value > 0)
-    .map((it, i) => { const { _key, ...rest } = it; return { ...rest, position: i }; });
+    .map((it, i) => { const { _key, ...rest } = it; return { ...rest, scheduled_value: (+rest.scheduled_value || 0) * scale, position: i }; });
 }
 
 // GET /api/estimates/:id/sov — list items, auto-generate if none exist yet

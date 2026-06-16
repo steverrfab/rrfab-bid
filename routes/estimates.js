@@ -6,6 +6,7 @@ const calc = require('../lib/calc');
 const { computeProcess } = require('../lib/calc_process');
 const { parseKiss } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
+const { buildProposalView } = require('../lib/proposal_lines');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
 
@@ -108,7 +109,10 @@ const EST_COLS = [
   'confirmed',
   // Alternates (user-editable fields; is_alternate/parent_estimate_id are set
   // only by the dedicated alternate endpoints, never via a generic update)
-  'alt_label', 'alt_position'
+  'alt_label', 'alt_position',
+  // Price to win: the final price you quote (NULL = use computed cost-plus).
+  // client_quote_amount snapshots the "set as client quote" price.
+  'price_to_win', 'client_quote_amount'
 ];
 
 // Rate and markup fields an alternate inherits from its base bid. An alternate
@@ -225,8 +229,11 @@ router.get('/summary', (req, res) => {
     const c = bundle.computed || {};
     const isPO = e.job_type === 'process_only';
     const pc = bundle.processComputed || {};
-    const revenue = isPO ? (+pc.quoted || 0) : (+c.totalBid || 0);
-    const profit  = isPO ? (+pc.gpDollar || 0) : (revenue - (+c.directCost || 0));
+    // Adjusted for price-to-win, hidden/excluded lines, and manual lines.
+    // With nothing overridden this equals the old cost-plus revenue/profit.
+    const view = buildProposalView(bundle);
+    const revenue = isPO ? view.total : view.finalTotal;
+    const profit  = view.marginDollars;
     rows.push({
       id: e.id,
       project_name: e.project_name || '',
