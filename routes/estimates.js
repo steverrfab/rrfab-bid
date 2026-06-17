@@ -285,9 +285,29 @@ router.post('/', (req, res) => {
   if (req.user && req.user.name) {
     db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(req.user.name, id);
   }
+  // Seed proposal Notes/Terms from the admin-set defaults (settings_kv), only when empty.
+  seedProposalDefaults(id);
   const bundle = loadFullEstimate(id);
   res.status(201).json(bundle);
 });
+
+// Copy the admin-configured default proposal Notes and Terms into a new estimate.
+// Only fills a field that is currently empty so it never clobbers anything the
+// caller already provided. Blank defaults are skipped, leaving legacy behavior intact.
+function seedProposalDefaults(id) {
+  const getKv = (key) => {
+    const row = db.prepare('SELECT value FROM settings_kv WHERE key = ?').get(key);
+    return row && row.value != null ? String(row.value) : '';
+  };
+  const notes = getKv('proposal_default_notes');
+  const terms = getKv('proposal_default_terms');
+  if (notes.trim()) {
+    db.prepare("UPDATE estimates SET proposal_notes = ? WHERE id = ? AND (proposal_notes IS NULL OR proposal_notes = '')").run(notes, id);
+  }
+  if (terms.trim()) {
+    db.prepare("UPDATE estimates SET proposal_terms = ? WHERE id = ? AND (proposal_terms IS NULL OR proposal_terms = '')").run(terms, id);
+  }
+}
 
 // Default line items and additional costs for a new process-only estimate,
 // matching the RR "Process Only" Excel template.
