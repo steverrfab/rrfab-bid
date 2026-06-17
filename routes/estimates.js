@@ -948,10 +948,39 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     }
 
     bundle = loadFullEstimate(id);
+
+    // Build human-readable notes so nothing is silently lost on import.
+    const notes = [];
+    const sk = parsed.skipped;
+    if (sk) {
+      if (sk.hardware)  notes.push(sk.hardware + ' hardware line(s) skipped (held pending the hardware redesign).');
+      if (sk.stainless) notes.push(sk.stainless + ' stainless (SS) line(s) skipped (stainless rates not set up yet).');
+      if (sk.aluminum)  notes.push(sk.aluminum + ' aluminum line(s) skipped (aluminum rates not set up yet).');
+      const unrec = Object.keys(sk.unrecognized || {});
+      if (unrec.length) {
+        notes.push('Brought into Misc but please confirm the type: ' +
+          unrec.map(k => sk.unrecognized[k] + 'x "' + k + '"').join(', ') + '.');
+      }
+    }
+    // Shapes whose name is not in the AISC table import at zero weight; flag them.
+    const noWeight = {};
+    (parsed.shapes || []).forEach(s => {
+      if (s.section_name && aiscLookup(s.section_name) <= 0) {
+        noWeight[s.section_name] = (noWeight[s.section_name] || 0) + 1;
+      }
+    });
+    const nwKeys = Object.keys(noWeight);
+    if (nwKeys.length) {
+      notes.push('Need a manual weight (not in the AISC table): ' +
+        nwKeys.map(k => noWeight[k] + 'x ' + k).join(', ') + '.');
+    }
+
     res.json({ ...bundle, parsed: {
       shapes: (parsed.shapes || []).length,
       plates: (parsed.plates || []).length,
       misc:   (parsed.misc || []).length,
+      notes,
+      errors: parsed.errors || [],
     }});
   } catch (err) {
     res.status(500).json({ error: err.message });
