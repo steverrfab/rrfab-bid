@@ -54,13 +54,18 @@ function buildSovItems(bundle) {
     items.push({ item_no: '0', description: 'Scope of Work: ' + e.scope, scheduled_value: 0 });
   }
 
+  const exTot = (sec) => (bundle.extras || []).filter(x => (+x.section) === sec)
+    .reduce((acc, x) => acc + (+x.qty || 0) * (+x.rate || 0), 0);
+  const exFab = exTot(2) + exTot(3);
+  const exErect = exTot(4);
+
   // Material and finishes
   items.push(
     { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling) * m },
+    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + exFab) * m },
     { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
     { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
-    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1)) * m },
+    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1) + exErect) * m },
     { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
     { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
   );
@@ -70,11 +75,7 @@ function buildSovItems(bundle) {
     items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   if ((+e.sub_erection || 0) > 0)
     items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
-  (bundle.extras || []).forEach(x => {
-    if ((+x.section) === 1) return; // Material extras are already in item 1
-    const amt = (+x.qty || 0) * (+x.rate || 0) * m;
-    if (amt > 0) items.push({ item_no: String(next++), description: x.description || 'Additional Item', scheduled_value: amt });
-  });
+  // Cost-Inputs extra rows are folded into items 1/2/5 above, never their own line.
   return items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
 }
 
@@ -527,8 +528,8 @@ function copyEstimateChildren(srcId, newId) {
     SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes FROM takeoff_shapes WHERE estimate_id = ?
+    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf)
+    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
     INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
@@ -716,8 +717,8 @@ router.put('/:id/takeoff/shapes', (req, res) => {
     db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
       INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft,
-        l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
@@ -732,7 +733,8 @@ router.put('/:id/takeoff/shapes', (req, res) => {
         +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
         +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
         r.drawing || '',
-        r.notes || ''
+        r.notes || '',
+        +r.manual_wpf || 0
       );
     }
     db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
@@ -1059,4 +1061,3 @@ router.post('/:id/process-import/kiss', upload.single('file'), (req, res) => {
 });
 
 module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
-// process-only routes added (change 2)
