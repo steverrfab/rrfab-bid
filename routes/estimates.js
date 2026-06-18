@@ -71,6 +71,7 @@ function buildSovItems(bundle) {
   if ((+e.sub_erection || 0) > 0)
     items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   (bundle.extras || []).forEach(x => {
+    if ((+x.section) === 1) return; // Material extras are already in item 1
     const amt = (+x.qty || 0) * (+x.rate || 0) * m;
     if (amt > 0) items.push({ item_no: String(next++), description: x.description || 'Additional Item', scheduled_value: amt });
   });
