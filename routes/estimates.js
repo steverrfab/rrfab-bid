@@ -4,7 +4,7 @@ const multer = require('multer');
 const db = require('../db');
 const calc = require('../lib/calc');
 const { computeProcess } = require('../lib/calc_process');
-const { parseKiss } = require('../lib/kiss');
+const { parseKiss, parseKissToTakeoff } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { generateProposalBuffer } = require('../lib/pdf');
@@ -828,7 +828,10 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!req.file) return res.status(400).json({ error: 'file required' });
-    const parsed = await parseTemplate(req.file.buffer);
+    const isKiss = /\.kss$/i.test(req.file.originalname || '');
+    const parsed = isKiss
+      ? parseKissToTakeoff(req.file.buffer.toString('utf8'))
+      : await parseTemplate(req.file.buffer, req.file.originalname);
     const mode = String(req.body.mode || 'replace');
 
     // Apply price book defaults to any row that came in with a zero rate
@@ -983,6 +986,9 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
       errors: parsed.errors || [],
     }});
   } catch (err) {
+    if (err && err.code === 'UNREADABLE_TAKEOFF_FILE') {
+      return res.status(400).json({ error: err.userMessage });
+    }
     res.status(500).json({ error: err.message });
   }
 });
