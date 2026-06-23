@@ -9,11 +9,77 @@ const { generateSov } = require('../lib/sov_pdf');
 
 router.use(requireAuth);
 
+// Build SOV line items for a process-only estimate from its process computed
+// totals. The cost components (processing, labor, galv, additional costs) are
+// scaled so they foot to the same pre-tax contract value the dashboard uses:
+// price-to-win when set, otherwise the cost-plus subtotal + O&P. This keeps O&P
+// folded into the lines (never shown as its own row), matching the full-project
+// SOV. Manual proposal lines and alternates are appended at their own value.
+function processOnlyItems(bundle) {
+  const e = bundle.estimate;
+  const pc = bundle.processComputed || {};
+  const subTotal = +pc.subTotal || 0;
+  const opAmt = +pc.opAmt || 0;
+  const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
+  const targetPreTax = ptw != null ? ptw : (subTotal + opAmt);
+  const mPO = subTotal > 0 ? targetPreTax / subTotal : 1;
+
+  const items = [];
+  const scopeText = (e.proposal_scope || e.scope || '').trim();
+  const drawings = (e.drawing_numbers || '').trim();
+  if (scopeText || drawings) {
+    items.push({ item_no: '0', description: 'Scope of Work: ' + (scopeText || '(see proposal)') + (drawings ? '  |  Drawings: ' + drawings : ''), scheduled_value: 0 });
+  }
+
+  let n = 1;
+  const push = (desc, raw) => {
+    const v = (+raw || 0) * mPO;
+    if (v > 0) items.push({ item_no: String(n++), description: desc, scheduled_value: v });
+  };
+  push('Processing and Fabrication', pc.totProcessing);
+  push('Labor', pc.laborRev);
+  push('Galvanizing', pc.totGalv);
+  push('Additional Costs', pc.addSub);
+
+  // Manually added proposal lines (final pre-tax amounts, not scaled).
+  (bundle.manualLines || []).forEach(ml => {
+    if (ml.hidden) return;
+    const amt = +ml.amount || 0;
+    if (amt > 0) items.push({ item_no: String(n++), description: ml.description || 'Additional Item', scheduled_value: amt });
+  });
+
+  // Alternates (priced separately) as their own pre-tax lines.
+  if (!e.is_alternate) {
+    const altRows = db.prepare(
+      'SELECT id, alt_label FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+    ).all(e.id);
+    altRows.forEach((r, ai) => {
+      const ab = loadFullEstimate(r.id);
+      if (!ab) return;
+      const isPO = ab.estimate.job_type === 'process_only';
+      const apc = ab.processComputed || {};
+      const ac = ab.computed || {};
+      const val = isPO ? ((apc.quoted || 0) - (apc.taxAmt || 0)) : (ac.totalBid || 0);
+      const label = (r.alt_label || '').trim() || ('Alternate ' + (ai + 1));
+      items.push({ item_no: 'ALT ' + (ai + 1), description: 'Add Alternate: ' + label, scheduled_value: val });
+    });
+  }
+
+  return items.map((it, i) => ({ ...it, position: i }));
+}
+
 // Build auto-generated SOV line items from computed totals.
 // Mirrors the proposal line items structure.
 function autoGenerateItems(bundle) {
   const e = bundle.estimate;
   const c = bundle.computed;
+
+  // Process-only jobs carry no full-project material/fab numbers, so the
+  // default item set below would foot to zero. Build the SOV from the
+  // process-only computed totals instead.
+  if (e.job_type === 'process_only') {
+    return processOnlyItems(bundle);
+  }
 
   function mf() {
     return (1 + (+e.oh_rate || 0))

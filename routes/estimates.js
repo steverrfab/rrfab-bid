@@ -114,7 +114,10 @@ const EST_COLS = [
   'alt_label', 'alt_position',
   // Price to win: the final price you quote (NULL = use computed cost-plus).
   // client_quote_amount snapshots the "set as client quote" price.
-  'price_to_win', 'client_quote_amount'
+  'price_to_win', 'client_quote_amount',
+  // Bid type: 'real' (counts in dashboard totals) | 'test' | 'demo' | 'superseded'.
+  // Only 'real' is summed on the dashboard.
+  'bid_type'
 ];
 
 // Rate and markup fields an alternate inherits from its base bid. An alternate
@@ -222,9 +225,12 @@ router.get('/', (req, res) => {
 // revenue = total bid (sell price, before tax); profit = bid minus direct job cost.
 // Respects the same role visibility as the list endpoint.
 router.get('/summary', (req, res) => {
+  // Only 'real' bids count toward dashboard totals. Test/Demo/Superseded bids
+  // stay in the system (visible in the list) but are excluded here. NULL is
+  // treated as 'real' so legacy rows keep counting.
   const idRows = isAdminish(req.user.role)
-    ? db.prepare('SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0').all()
-    : db.prepare('SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0').all(req.user.userId);
+    ? db.prepare("SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all()
+    : db.prepare("SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
 
   const rows = [];
   for (const { id } of idRows) {
@@ -438,7 +444,11 @@ router.put('/:id', async (req, res) => {
     // Stamp the date this bid was marked Won (drives the dashboard Won card time filter)
     db.prepare("UPDATE estimates SET won_at = datetime('now') WHERE id = ?").run(id);
     const existingSov = db.prepare('SELECT id FROM sov_items WHERE estimate_id = ? LIMIT 1').get(id);
-    if (!existingSov) {
+    // Pre-seed only for full-project jobs. buildSovItems uses full-project totals,
+    // so for process-only it would write zero-value lines and then block the
+    // /sov route (which has the process-only math) from generating correctly.
+    // Leaving process-only unseeded lets the SOV tab generate it properly on open.
+    if (!existingSov && bundle.estimate.job_type !== 'process_only') {
       const sovItems = buildSovItems(bundle);
       const ins = db.prepare(
         'INSERT INTO sov_items (estimate_id, item_no, description, scheduled_value, position) VALUES (?,?,?,?,?)'
@@ -506,15 +516,25 @@ router.post('/:id/submit', async (req, res) => {
   `).run(now, proposalDate, id);
 
   const bundle = loadFullEstimate(id);
-  const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
+  // Test/Demo bids exist only for trying things out: they never notify anyone
+  // and never count in dashboard totals. Skip the email entirely for them.
+  const bidType = bundle.estimate && bundle.estimate.bid_type;
+  const isTestLike = bidType === 'test' || bidType === 'demo';
+  const recipients = isTestLike
+    ? []
+    : db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
 
-  // Send email notification (fire-and-forget)
-  sendReadyToSubmit(bundle, recipients).catch(err => console.error('[submit] email error:', err));
+  if (!isTestLike) {
+    // Send email notification (fire-and-forget)
+    sendReadyToSubmit(bundle, recipients).catch(err => console.error('[submit] email error:', err));
+  }
 
   // Return bundle with notification info (send doesn't wait for email)
   res.json({
     ...bundle,
-    notification: { ok: true, sent: recipients.length }
+    notification: isTestLike
+      ? { ok: true, sent: 0, skipped: bidType + ' bid — no notification sent' }
+      : { ok: true, sent: recipients.length }
   });
 });
 
@@ -584,7 +604,11 @@ router.post('/:id/clone', (req, res) => {
     const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
     if (isRevision) {
       const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
-      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft' WHERE id = ?").run(nextRevision(base), newId);
+      // The new revision is the live bid and always counts in dashboard totals.
+      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft', bid_type = 'real' WHERE id = ?").run(nextRevision(base), newId);
+      // The bid it supersedes drops out of totals so the same job is not counted
+      // twice. If a revision is later abandoned, re-mark bid types by hand.
+      db.prepare("UPDATE estimates SET bid_type = 'superseded' WHERE id = ?").run(src.id);
     } else {
       db.prepare("UPDATE estimates SET bid_number = '', confirmed = 0 WHERE id = ?").run(newId);
     }
