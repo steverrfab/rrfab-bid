@@ -454,6 +454,17 @@ router.put('/:id', async (req, res) => {
   if (cur && cur.confirmed === 1 && (!cur.bid_number || String(cur.bid_number).trim() === '')) {
     db.prepare('UPDATE estimates SET bid_number = ? WHERE id = ?').run(nextBidNumber(), id);
   }
+
+  // Status is a job-level attribute: when it changes, every version of the same
+  // job (same bid-number base) travels together so revisions never drift apart.
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'status')) {
+    const meRow = db.prepare('SELECT bid_number FROM estimates WHERE id = ?').get(id);
+    const base = String((meRow && meRow.bid_number) || '').split('.')[0];
+    if (base) {
+      db.prepare("UPDATE estimates SET status = ?, updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND id != ? AND deleted_at IS NULL AND is_alternate = 0").run(req.body.status, base, base + '.%', id);
+    }
+  }
+
   const bundle = loadFullEstimate(id);
 
   // On transition to Won: auto-generate SOV if not already present, then email recipients
