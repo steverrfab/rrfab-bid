@@ -339,18 +339,21 @@ const PO_DEFAULT_ADDCOSTS = [
   ['Trucking', 'loads', 2500, 0],
   ['Paint', 'lbs', 0.02, 0],
   ['Galvanize', 'lbs', 0.65, 0],
-  ['Other / Misc', 'flat $', 0, 1]
+  ['Other / Misc', 'flat $', 0, 1],
+  // [name, unit, rate, is_flat, is_labor] — Shop Labor keeps its margin: it bills
+  // at hours x rate but costs at the estimate cost rate (see lib/calc_process.js).
+  ['Shop Labor', 'hrs', 85, 0, 1]
 ];
 function seedProcessOnlyDefaults(id) {
   const lineIns = db.prepare(`INSERT INTO process_only_lines
     (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
     VALUES (?, ?, ?, ?, 0, 0, 0, ?, 0)`);
   const addIns = db.prepare(`INSERT INTO process_only_addcosts
-    (estimate_id, position, name, unit, input_qty, rate, is_flat)
-    VALUES (?, ?, ?, ?, 0, ?, ?)`);
+    (estimate_id, position, name, unit, input_qty, rate, is_flat, is_labor)
+    VALUES (?, ?, ?, ?, 0, ?, ?, ?)`);
   const tx = db.transaction(() => {
     PO_DEFAULT_LINES.forEach((r, i) => lineIns.run(id, i + 1, r[0], r[1], r[2]));
-    PO_DEFAULT_ADDCOSTS.forEach((r, i) => addIns.run(id, i + 1, r[0], r[1], r[2], r[3]));
+    PO_DEFAULT_ADDCOSTS.forEach((r, i) => addIns.run(id, i + 1, r[0], r[1], r[2], r[3], r[4] || 0));
   });
   tx();
 }
@@ -568,8 +571,8 @@ function copyEstimateChildren(srcId, newId) {
     SELECT ?, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual FROM process_only_lines WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
-    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat)
-    SELECT ?, position, name, unit, input_qty, rate, is_flat FROM process_only_addcosts WHERE estimate_id = ?
+    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat, is_labor)
+    SELECT ?, position, name, unit, input_qty, rate, is_flat, is_labor FROM process_only_addcosts WHERE estimate_id = ?
   `).run(newId, srcId);
 }
 
@@ -1057,13 +1060,13 @@ router.put('/:id/process-addcosts', (req, res) => {
   const id = Number(req.params.id);
   const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
   const ins = db.prepare(`INSERT INTO process_only_addcosts
-    (estimate_id, position, name, unit, input_qty, rate, is_flat)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    (estimate_id, position, name, unit, input_qty, rate, is_flat, is_labor)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM process_only_addcosts WHERE estimate_id = ?').run(id);
     rows.forEach((r, i) => ins.run(
       id, +r.position || i + 1, r.name || '', r.unit || '',
-      +r.input_qty || 0, +r.rate || 0, r.is_flat ? 1 : 0
+      +r.input_qty || 0, +r.rate || 0, r.is_flat ? 1 : 0, r.is_labor ? 1 : 0
     ));
     db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);
   });
