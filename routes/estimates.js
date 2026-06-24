@@ -198,7 +198,7 @@ router.get('/', (req, res) => {
   if (isAdminish(req.user.role)) {
     const rows = db.prepare(`
       SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-             e.status, e.job_type, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
+             e.status, e.job_type, e.bid_type, e.revised_from_id, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
@@ -210,13 +210,28 @@ router.get('/', (req, res) => {
   // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
-           e.status, e.job_type, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
+           e.status, e.job_type, e.bid_type, e.revised_from_id, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
     WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
+  res.json({ rows });
+});
+
+// ---- TRASH: list soft-deleted bids (restorable) ----
+router.get('/deleted', (req, res) => {
+  const base = `
+    SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc,
+           e.status, e.job_type, e.bid_type, e.deleted_at, e.updated_at, e.created_by,
+           u.name as owner_name, u.email as owner_email
+    FROM estimates e
+    LEFT JOIN users u ON u.id = e.created_by
+    WHERE e.deleted_at IS NOT NULL AND e.is_alternate = 0`;
+  const rows = isAdminish(req.user.role)
+    ? db.prepare(base + ' ORDER BY e.deleted_at DESC').all()
+    : db.prepare(base + ' AND (e.created_by = ? OR e.created_by IS NULL) ORDER BY e.deleted_at DESC').all(req.user.userId);
   res.json({ rows });
 });
 
@@ -497,6 +512,44 @@ router.delete('/:id', (req, res) => {
 });
 
 
+// ---- RESTORE (undo soft-delete) ----
+router.post('/:id/restore', (req, res) => {
+  const id = Number(req.params.id);
+  const est = db.prepare('SELECT id, created_by, deleted_at FROM estimates WHERE id = ?').get(id);
+  if (!est || !est.deleted_at) return res.status(404).json({ error: 'not found' });
+  // Non-admins may only restore their own (or legacy ownerless) bids.
+  if (!isAdminish(req.user.role) && est.created_by !== null && est.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+  db.prepare("UPDATE estimates SET deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+  // Bring back alternates that were soft-deleted together with this parent.
+  db.prepare("UPDATE estimates SET deleted_at = NULL, updated_at = datetime('now') WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NOT NULL").run(id);
+  res.json({ restored: id });
+});
+
+
+// ---- MARK COUNTED (which version of a job counts on the dashboard) ----
+router.post('/:id/mark-counted', (req, res) => {
+  const id = Number(req.params.id);
+  const est = db.prepare('SELECT id, bid_number, created_by FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!est) return res.status(404).json({ error: 'not found' });
+  if (!isAdminish(req.user.role) && est.created_by !== null && est.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+  const base = String(est.bid_number || '').split('.')[0];
+  const tx = db.transaction(() => {
+    if (base) {
+      // Every other version of the same job drops out of dashboard totals...
+      db.prepare("UPDATE estimates SET bid_type = 'superseded', updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND deleted_at IS NULL AND is_alternate = 0").run(base, base + '.%');
+    }
+    // ...and the chosen one becomes the live, counted bid.
+    db.prepare("UPDATE estimates SET bid_type = 'real', updated_at = datetime('now') WHERE id = ?").run(id);
+  });
+  tx();
+  res.json({ counted: id });
+});
+
+
 // ---- SUBMIT ----
 router.post('/:id/submit', async (req, res) => {
   const id = Number(req.params.id);
@@ -608,7 +661,7 @@ router.post('/:id/clone', (req, res) => {
     if (isRevision) {
       const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
       // The new revision is the live bid and always counts in dashboard totals.
-      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft', bid_type = 'real' WHERE id = ?").run(nextRevision(base), newId);
+      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, status = 'Draft', bid_type = 'real', revised_from_id = ? WHERE id = ?").run(nextRevision(base), src.id, newId);
       // The bid it supersedes drops out of totals so the same job is not counted
       // twice. If a revision is later abandoned, re-mark bid types by hand.
       db.prepare("UPDATE estimates SET bid_type = 'superseded' WHERE id = ?").run(src.id);
