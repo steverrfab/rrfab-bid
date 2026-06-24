@@ -133,9 +133,48 @@ function seedStandardExclusions() {
   }
 }
 
+// One-time backfill: before status traveled across a job family, a revision
+// could be left behind when its job was marked Won/Lost. Sync each family that
+// contains a Won (or Lost) version so every version matches. Guarded by a marker
+// so it runs once, never fighting normal operation on later restarts.
+function reconcileWonLostFamilies() {
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _data_fixes (name TEXT PRIMARY KEY, applied_at TEXT)");
+    const done = db.prepare('SELECT 1 FROM _data_fixes WHERE name = ?').get('042_family_won_lost_sync');
+    if (done) return;
+    const rows = db.prepare("SELECT id, bid_number, status FROM estimates WHERE deleted_at IS NULL AND is_alternate = 0 AND bid_number IS NOT NULL AND bid_number != ''").all();
+    const fams = new Map();
+    for (const r of rows) {
+      const base = String(r.bid_number).split('.')[0];
+      if (!fams.has(base)) fams.set(base, []);
+      fams.get(base).push(r);
+    }
+    const updWon = db.prepare("UPDATE estimates SET status = 'Won', won_at = COALESCE(won_at, datetime('now')), updated_at = datetime('now') WHERE id = ?");
+    const updLost = db.prepare("UPDATE estimates SET status = 'Lost', updated_at = datetime('now') WHERE id = ?");
+    let changed = 0;
+    const tx = db.transaction(() => {
+      for (const [base, members] of fams) {
+        if (members.length < 2) continue;
+        const target = members.some(m => m.status === 'Won') ? 'Won'
+                     : (members.some(m => m.status === 'Lost') ? 'Lost' : null);
+        if (!target) continue;
+        for (const m of members) {
+          if (m.status !== target) { (target === 'Won' ? updWon : updLost).run(m.id); changed++; }
+        }
+      }
+      db.prepare("INSERT OR IGNORE INTO _data_fixes (name, applied_at) VALUES (?, datetime('now'))").run('042_family_won_lost_sync');
+    });
+    tx();
+    if (changed) console.log('[db] family won/lost status sync: updated ' + changed + ' bid(s)');
+  } catch (err) {
+    console.error('[db] family status sync skipped:', err.message);
+  }
+}
+
 runMigrations();
 seedAisc();
 seedFirstAdmin();
 seedStandardExclusions();
+reconcileWonLostFamilies();
 
 module.exports = db;
