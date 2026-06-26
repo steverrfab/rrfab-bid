@@ -261,13 +261,12 @@ router.get('/summary', (req, res) => {
     const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
     let revenue, profit;
     if (isPO) {
-      if (ptw != null) {
-        revenue = ptw + ptw * (+e.po_tax_pct || 0);
-        profit  = revenue - (+pc.yourCost || 0);
-      } else {
-        revenue = +pc.quoted || 0;
-        profit  = +pc.gpDollar || 0;
-      }
+      // Sell price BEFORE sales tax, matching how full-project bids are counted
+      // (c.totalBid is pre-tax). Sales tax is a pass-through, so it must not
+      // land in revenue or profit. price_to_win, when set, is the pre-tax sell.
+      const poPreTax = (+pc.subTotal || 0) + (+pc.opAmt || 0);
+      revenue = ptw != null ? ptw : poPreTax;
+      profit  = revenue - (+pc.yourCost || 0);
     } else {
       revenue = ptw != null ? ptw : (+c.totalBid || 0);
       profit  = revenue - (+c.directCost || 0);
@@ -285,6 +284,47 @@ router.get('/summary', (req, res) => {
       bid_date: e.bid_date || null,
       revenue,
       profit
+    });
+  }
+  res.json({ rows });
+});
+
+// Sales tax owed per Won job (admin only). Sales tax is a pass-through we
+// collect and remit, so the dashboard reports pre-tax; this is the one place
+// tax is totaled. Mirrors the same visibility filters as /summary.
+router.get('/tax-summary', (req, res) => {
+  if (!isAdminish(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  const idRows = db.prepare("SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all();
+  const rows = [];
+  for (const { id } of idRows) {
+    const bundle = loadFullEstimate(id);
+    if (!bundle) continue;
+    const e = bundle.estimate;
+    const c = bundle.computed || {};
+    const pc = bundle.processComputed || {};
+    const isPO = e.job_type === 'process_only';
+    let taxBase, taxRate, taxAmount;
+    if (isPO) {
+      taxBase = (+pc.subTotal || 0) + (+pc.opAmt || 0);
+      taxRate = +e.po_tax_pct || 0;
+      taxAmount = +pc.taxAmt || 0;
+    } else {
+      const t = c.tax || {};
+      taxBase = +t.base || 0;
+      taxRate = +t.rate || 0;
+      taxAmount = +t.amount || 0;
+    }
+    rows.push({
+      id: e.id,
+      project_name: e.project_name || '',
+      bid_number: e.bid_number || '',
+      job_number: e.job_number || '',
+      client_gc: e.client_gc || '',
+      job_type: e.job_type || 'full',
+      won_at: e.won_at || null,
+      tax_base: taxBase,
+      tax_rate: taxRate,
+      tax_amount: taxAmount
     });
   }
   res.json({ rows });
