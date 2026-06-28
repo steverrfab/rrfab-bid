@@ -488,6 +488,39 @@ router.put('/:id', async (req, res) => {
   if (lock && lock.user_id !== (req.user && req.user.userId)) {
     return res.status(423).json({ error: 'This bid is being edited by ' + (lock.user_name || 'another user') });
   }
+
+  // --- Job-number gate ---
+  // A bid cannot move into Won without a valid, unique job number. Enforced here
+  // (not just in the UI) so it holds no matter which screen triggers the win:
+  // the list status dropdown, the Project tab dropdown, or the editor button.
+  // Format depends on job_type: full = 4 digits (0000), process-only = P-000.
+  let gatedJobNumber = null;
+  if (((req.body || {}).status === 'Won') && prev.status !== 'Won') {
+    const grow = db.prepare('SELECT job_type, job_number, bid_number FROM estimates WHERE id = ?').get(id);
+    const jobType = (grow && grow.job_type) || 'full';
+    const hasIncoming = Object.prototype.hasOwnProperty.call(req.body || {}, 'job_number');
+    const candidate = String((hasIncoming ? req.body.job_number : (grow && grow.job_number)) || '').trim();
+    const pattern = jobType === 'process_only' ? /^P-\d{3}$/ : /^\d{4}$/;
+    if (!pattern.test(candidate)) {
+      return res.status(400).json({
+        error: jobType === 'process_only'
+          ? 'A job number (P- followed by 3 digits) is required to mark this bid Won.'
+          : 'A job number (4 digits) is required to mark this bid Won.'
+      });
+    }
+    // Uniqueness is checked against OTHER job families. Revisions of the same job
+    // (same bid-number base, e.g. 2005 / 2005.1) deliberately share one number,
+    // so a blanket UNIQUE index can't be used; we exclude this job's own base.
+    const base = String((grow && grow.bid_number) || '').split('.')[0];
+    const dupSql = 'SELECT id FROM estimates WHERE job_number = ? AND deleted_at IS NULL AND is_alternate = 0 AND id != ?'
+      + (base ? ' AND bid_number != ? AND bid_number NOT LIKE ?' : '');
+    const dupArgs = base ? [candidate, id, base, base + '.%'] : [candidate, id];
+    if (db.prepare(dupSql).get(...dupArgs)) {
+      return res.status(409).json({ error: candidate + ' is already assigned to another job.' });
+    }
+    gatedJobNumber = candidate;
+  }
+
   applyUpdate(id, req.body || {});
   // Assign a bid number the first time an estimate is confirmed (saved).
   const cur = db.prepare('SELECT confirmed, bid_number FROM estimates WHERE id = ?').get(id);
@@ -512,6 +545,18 @@ router.put('/:id', async (req, res) => {
   if (newStatus === 'Won' && prev.status !== 'Won') {
     // Stamp the date this bid was marked Won (drives the dashboard Won card time filter)
     db.prepare("UPDATE estimates SET won_at = datetime('now') WHERE id = ?").run(id);
+    // Persist the gated job number, stamp who/when assigned it, and push the same
+    // number onto every version of this job family so revisions inherit it.
+    if (gatedJobNumber) {
+      db.prepare("UPDATE estimates SET job_number = ?, job_number_assigned_by = ?, job_number_assigned_at = datetime('now') WHERE id = ?")
+        .run(gatedJobNumber, (req.user && req.user.userId) || null, id);
+      const famRow = db.prepare('SELECT bid_number FROM estimates WHERE id = ?').get(id);
+      const famBase = String((famRow && famRow.bid_number) || '').split('.')[0];
+      if (famBase) {
+        db.prepare("UPDATE estimates SET job_number = ? WHERE (bid_number = ? OR bid_number LIKE ?) AND id != ? AND deleted_at IS NULL")
+          .run(gatedJobNumber, famBase, famBase + '.%', id);
+      }
+    }
     const existingSov = db.prepare('SELECT id FROM sov_items WHERE estimate_id = ? LIMIT 1').get(id);
     // Pre-seed only for full-project jobs. buildSovItems uses full-project totals,
     // so for process-only it would write zero-value lines and then block the
