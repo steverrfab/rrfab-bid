@@ -136,8 +136,13 @@ const INHERITED_RATE_FIELDS = [
   'po_op_pct', 'po_tax_pct'
 ];
 
-function loadFullEstimate(id) {
-  const est = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+function loadFullEstimate(id, opts = {}) {
+  // includeDeleted lets the read-only "view a deleted bid" path load a
+  // soft-deleted estimate. Every other caller omits it, so behavior is
+  // unchanged (deleted bids stay invisible) for the dashboard, feed, etc.
+  const est = opts.includeDeleted
+    ? db.prepare('SELECT * FROM estimates WHERE id = ?').get(id)
+    : db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return null;
   // Alternates inherit the base bid's rates and markup, in memory only (never
   // persisted). Base bids are never touched here, so their pricing is identical
@@ -181,7 +186,9 @@ function estimateOwnershipCheck(req, res, next) {
   if (!req.user || isAdminish(req.user.role)) return next();
   const id = Number(req.params.id);
   if (!id) return next();
-  const est = db.prepare('SELECT created_by FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  // No deleted_at filter here: ownership must still apply to soft-deleted bids
+  // so an estimator can only view their own deleted bids, not everyone's.
+  const est = db.prepare('SELECT created_by FROM estimates WHERE id = ?').get(id);
   if (!est) return next(); // let the route return 404
   if (est.created_by !== null && est.created_by !== req.user.userId) {
     return res.status(403).json({ error: 'Access denied.' });
@@ -415,7 +422,8 @@ function seedProcessOnlyDefaults(id) {
 
 // ---- GET ----
 router.get('/:id', (req, res) => {
-  const bundle = loadFullEstimate(Number(req.params.id));
+  const includeDeleted = req.query.includeDeleted === '1' || req.query.includeDeleted === 'true';
+  const bundle = loadFullEstimate(Number(req.params.id), { includeDeleted });
   if (!bundle) return res.status(404).json({ error: 'not found' });
   res.json(bundle);
 });
