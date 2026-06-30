@@ -1,1 +1,3202 @@
-[{"label":"W44X335","t_f":"F","weight_per_ft":335.0},{"label":"W44X290","t_f":"F","weight_per_ft":290.0},{"label":"W44X262","t_f":"F","weight_per_ft":262.0},{"label":"W44X230","t_f":"F","weight_per_ft":230.0},{"label":"W40X593","t_f":"T","weight_per_ft":593.0},{"label":"W40X503","t_f":"T","weight_per_ft":503.0},{"label":"W40X431","t_f":"T","weight_per_ft":431.0},{"label":"W40X397","t_f":"T","weight_per_ft":397.0},{"label":"W40X372","t_f":"T","weight_per_ft":372.0},{"label":"W40X362","t_f":"T","weight_per_ft":362.0},{"label":"W40X324","t_f":"F","weight_per_ft":324.0},{"label":"W40X297","t_f":"F","weight_per_ft":297.0},{"label":"W40X277","t_f":"F","weight_per_ft":277.0},{"label":"W40X249","t_f":"F","weight_per_ft":249.0},{"label":"W40X215","t_f":"F","weight_per_ft":215.0},{"label":"W40X199","t_f":"F","weight_per_ft":199.0},{"label":"W40X392","t_f":"T","weight_per_ft":392.0},{"label":"W40X331","t_f":"T","weight_per_ft":331.0},{"label":"W40X327","t_f":"T","weight_per_ft":327.0},{"label":"W40X294","t_f":"F","weight_per_ft":294.0},{"label":"W40X278","t_f":"F","weight_per_ft":278.0},{"label":"W40X264","t_f":"F","weight_per_ft":264.0},{"label":"W40X235","t_f":"F","weight_per_ft":235.0},{"label":"W40X211","t_f":"F","weight_per_ft":211.0},{"label":"W40X183","t_f":"F","weight_per_ft":183.0},{"label":"W40X167","t_f":"F","weight_per_ft":167.0},{"label":"W40X149","t_f":"F","weight_per_ft":149.0},{"label":"W36X800","t_f":"T","weight_per_ft":800.0},{"label":"W36X652","t_f":"T","weight_per_ft":652.0},{"label":"W36X529","t_f":"T","weight_per_ft":529.0},{"label":"W36X487","t_f":"T","weight_per_ft":487.0},{"label":"W36X441","t_f":"T","weight_per_ft":442.0},{"label":"W36X395","t_f":"T","weight_per_ft":395.0},{"label":"W36X361","t_f":"T","weight_per_ft":361.0},{"label":"W36X330","t_f":"F","weight_per_ft":330.0},{"label":"W36X302","t_f":"F","weight_per_ft":302.0},{"label":"W36X282","t_f":"F","weight_per_ft":282.0},{"label":"W36X262","t_f":"F","weight_per_ft":262.0},{"label":"W36X247","t_f":"F","weight_per_ft":247.0},{"label":"W36X231","t_f":"F","weight_per_ft":231.0},{"label":"W36X256","t_f":"T","weight_per_ft":256.0},{"label":"W36X232","t_f":"T","weight_per_ft":232.0},{"label":"W36X210","t_f":"T","weight_per_ft":210.0},{"label":"W36X194","t_f":"F","weight_per_ft":194.0},{"label":"W36X182","t_f":"F","weight_per_ft":182.0},{"label":"W36X170","t_f":"F","weight_per_ft":170.0},{"label":"W36X160","t_f":"F","weight_per_ft":160.0},{"label":"W36X150","t_f":"F","weight_per_ft":150.0},{"label":"W36X135","t_f":"F","weight_per_ft":135.0},{"label":"W33X387","t_f":"T","weight_per_ft":387.0},{"label":"W33X354","t_f":"T","weight_per_ft":354.0},{"label":"W33X318","t_f":"T","weight_per_ft":318.0},{"label":"W33X291","t_f":"T","weight_per_ft":291.0},{"label":"W33X263","t_f":"T","weight_per_ft":263.0},{"label":"W33X241","t_f":"F","weight_per_ft":241.0},{"label":"W33X221","t_f":"F","weight_per_ft":221.0},{"label":"W33X201","t_f":"F","weight_per_ft":201.0},{"label":"W33X169","t_f":"F","weight_per_ft":169.0},{"label":"W33X152","t_f":"F","weight_per_ft":152.0},{"label":"W33X141","t_f":"F","weight_per_ft":141.0},{"label":"W33X130","t_f":"F","weight_per_ft":130.0},{"label":"W33X118","t_f":"F","weight_per_ft":118.0},{"label":"W30X391","t_f":"T","weight_per_ft":391.0},{"label":"W30X357","t_f":"T","weight_per_ft":357.0},{"label":"W30X326","t_f":"T","weight_per_ft":326.0},{"label":"W30X292","t_f":"T","weight_per_ft":292.0},{"label":"W30X261","t_f":"T","weight_per_ft":261.0},{"label":"W30X235","t_f":"T","weight_per_ft":235.0},{"label":"W30X211","t_f":"F","weight_per_ft":211.0},{"label":"W30X191","t_f":"F","weight_per_ft":191.0},{"label":"W30X173","t_f":"F","weight_per_ft":173.0},{"label":"W30X148","t_f":"F","weight_per_ft":148.0},{"label":"W30X132","t_f":"F","weight_per_ft":132.0},{"label":"W30X124","t_f":"F","weight_per_ft":124.0},{"label":"W30X116","t_f":"F","weight_per_ft":116.0},{"label":"W30X108","t_f":"F","weight_per_ft":108.0},{"label":"W30X99","t_f":"F","weight_per_ft":99.0},{"label":"W30X90","t_f":"F","weight_per_ft":90.0},{"label":"W27X539","t_f":"T","weight_per_ft":539.0},{"label":"W27X368","t_f":"T","weight_per_ft":368.0},{"label":"W27X336","t_f":"T","weight_per_ft":336.0},{"label":"W27X307","t_f":"T","weight_per_ft":307.0},{"label":"W27X281","t_f":"T","weight_per_ft":281.0},{"label":"W27X258","t_f":"T","weight_per_ft":258.0},{"label":"W27X235","t_f":"T","weight_per_ft":235.0},{"label":"W27X217","t_f":"F","weight_per_ft":217.0},{"label":"W27X194","t_f":"F","weight_per_ft":194.0},{"label":"W27X178","t_f":"F","weight_per_ft":178.0},{"label":"W27X161","t_f":"F","weight_per_ft":161.0},{"label":"W27X146","t_f":"F","weight_per_ft":146.0},{"label":"W27X129","t_f":"F","weight_per_ft":129.0},{"label":"W27X114","t_f":"F","weight_per_ft":114.0},{"label":"W27X102","t_f":"F","weight_per_ft":102.0},{"label":"W27X94","t_f":"F","weight_per_ft":94.0},{"label":"W27X84","t_f":"F","weight_per_ft":84.0},{"label":"W24X370","t_f":"T","weight_per_ft":370.0},{"label":"W24X335","t_f":"T","weight_per_ft":335.0},{"label":"W24X306","t_f":"T","weight_per_ft":306.0},{"label":"W24X279","t_f":"T","weight_per_ft":279.0},{"label":"W24X250","t_f":"T","weight_per_ft":250.0},{"label":"W24X229","t_f":"T","weight_per_ft":229.0},{"label":"W24X207","t_f":"T","weight_per_ft":207.0},{"label":"W24X192","t_f":"F","weight_per_ft":192.0},{"label":"W24X176","t_f":"F","weight_per_ft":176.0},{"label":"W24X162","t_f":"F","weight_per_ft":162.0},{"label":"W24X146","t_f":"F","weight_per_ft":146.0},{"label":"W24X131","t_f":"F","weight_per_ft":131.0},{"label":"W24X117","t_f":"F","weight_per_ft":117.0},{"label":"W24X104","t_f":"F","weight_per_ft":104.0},{"label":"W24X103","t_f":"F","weight_per_ft":103.0},{"label":"W24X94","t_f":"F","weight_per_ft":94.0},{"label":"W24X84","t_f":"F","weight_per_ft":84.0},{"label":"W24X76","t_f":"F","weight_per_ft":76.0},{"label":"W24X68","t_f":"F","weight_per_ft":68.0},{"label":"W24X62","t_f":"F","weight_per_ft":62.0},{"label":"W24X55","t_f":"F","weight_per_ft":55.0},{"label":"HSS20X12X5/8","t_f":"","weight_per_ft":58.1},{"label":"HSS20X12X1/2","t_f":"","weight_per_ft":47.9},{"label":"HSS20X12X3/8","t_f":"","weight_per_ft":36.81},{"label":"HSS20X4X1/2","t_f":"","weight_per_ft":38.03},{"label":"HSS20X4X3/8","t_f":"","weight_per_ft":29.25},{"label":"HSS18X6X5/8","t_f":"","weight_per_ft":46.96},{"label":"HSS18X6X1/2","t_f":"","weight_per_ft":38.83},{"label":"HSS18X6X3/8","t_f":"","weight_per_ft":29.93},{"label":"HSS16X16X5/8","t_f":"","weight_per_ft":58.1},{"label":"HSS16X16X1/2","t_f":"","weight_per_ft":47.9},{"label":"HSS16X16X3/8","t_f":"","weight_per_ft":36.81},{"label":"HSS16X12X5/8","t_f":"","weight_per_ft":50.59},{"label":"HSS16X12X1/2","t_f":"","weight_per_ft":41.78},{"label":"HSS16X12X3/8","t_f":"","weight_per_ft":32.18},{"label":"HSS16X8X5/8","t_f":"","weight_per_ft":43.08},{"label":"HSS16X8X1/2","t_f":"","weight_per_ft":35.67},{"label":"HSS16X8X3/8","t_f":"","weight_per_ft":27.55},{"label":"HSS16X4X1/2","t_f":"","weight_per_ft":32.04},{"label":"HSS16X4X3/8","t_f":"","weight_per_ft":24.93},{"label":"HSS14X10X5/8","t_f":"","weight_per_ft":43.08},{"label":"HSS14X10X1/2","t_f":"","weight_per_ft":35.67},{"label":"HSS14X10X3/8","t_f":"","weight_per_ft":27.55},{"label":"HSS12X12X5/8","t_f":"","weight_per_ft":43.08},{"label":"HSS12X12X1/2","t_f":"","weight_per_ft":35.67},{"label":"HSS12X12X3/8","t_f":"","weight_per_ft":27.55},{"label":"HSS12X8X5/8","t_f":"","weight_per_ft":35.56},{"label":"HSS12X8X1/2","t_f":"","weight_per_ft":29.56},{"label":"HSS12X8X3/8","t_f":"","weight_per_ft":22.92},{"label":"HSS12X6X5/8","t_f":"","weight_per_ft":31.81},{"label":"HSS12X6X1/2","t_f":"","weight_per_ft":26.5},{"label":"HSS12X6X3/8","t_f":"","weight_per_ft":20.61},{"label":"HSS12X4X5/8","t_f":"","weight_per_ft":28.06},{"label":"HSS12X4X1/2","t_f":"","weight_per_ft":23.45},{"label":"HSS12X4X3/8","t_f":"","weight_per_ft":18.29},{"label":"HSS10X10X5/8","t_f":"","weight_per_ft":35.56},{"label":"HSS10X10X1/2","t_f":"","weight_per_ft":29.56},{"label":"HSS10X10X3/8","t_f":"","weight_per_ft":22.92},{"label":"HSS10X10X5/16","t_f":"","weight_per_ft":19.29},{"label":"HSS10X10X1/4","t_f":"","weight_per_ft":15.58},{"label":"HSS10X8X1/2","t_f":"","weight_per_ft":27.5},{"label":"HSS10X8X3/8","t_f":"","weight_per_ft":21.36},{"label":"HSS10X6X1/2","t_f":"","weight_per_ft":23.45},{"label":"HSS10X6X3/8","t_f":"","weight_per_ft":18.29},{"label":"HSS10X4X1/2","t_f":"","weight_per_ft":19.39},{"label":"HSS10X4X3/8","t_f":"","weight_per_ft":15.17},{"label":"HSS10X2X3/8","t_f":"","weight_per_ft":12.03},{"label":"HSS8X8X5/8","t_f":"","weight_per_ft":28.06},{"label":"HSS8X8X1/2","t_f":"","weight_per_ft":23.45},{"label":"HSS8X8X3/8","t_f":"","weight_per_ft":18.29},{"label":"HSS8X8X5/16","t_f":"","weight_per_ft":15.42},{"label":"HSS8X8X1/4","t_f":"","weight_per_ft":12.48},{"label":"HSS8X6X5/8","t_f":"","weight_per_ft":24.3},{"label":"HSS8X6X1/2","t_f":"","weight_per_ft":20.39},{"label":"HSS8X6X3/8","t_f":"","weight_per_ft":15.98},{"label":"HSS8X6X5/16","t_f":"","weight_per_ft":13.5},{"label":"HSS8X6X1/4","t_f":"","weight_per_ft":10.94},{"label":"HSS8X4X1/2","t_f":"","weight_per_ft":17.34},{"label":"HSS8X4X3/8","t_f":"","weight_per_ft":13.66},{"label":"HSS8X4X5/16","t_f":"","weight_per_ft":11.57},{"label":"HSS8X4X1/4","t_f":"","weight_per_ft":9.4},{"label":"HSS8X3X1/2","t_f":"","weight_per_ft":15.19},{"label":"HSS8X3X3/8","t_f":"","weight_per_ft":12.04},{"label":"HSS8X3X5/16","t_f":"","weight_per_ft":10.22},{"label":"HSS8X3X1/4","t_f":"","weight_per_ft":8.33},{"label":"HSS8X2X3/8","t_f":"","weight_per_ft":10.42},{"label":"HSS8X2X5/16","t_f":"","weight_per_ft":8.87},{"label":"HSS8X2X1/4","t_f":"","weight_per_ft":7.25},{"label":"HSS6X6X5/8","t_f":"","weight_per_ft":20.55},{"label":"HSS6X6X1/2","t_f":"","weight_per_ft":17.34},{"label":"HSS6X6X3/8","t_f":"","weight_per_ft":13.66},{"label":"HSS6X6X5/16","t_f":"","weight_per_ft":11.57},{"label":"HSS6X6X1/4","t_f":"","weight_per_ft":9.4},{"label":"HSS6X4X1/2","t_f":"","weight_per_ft":14.15},{"label":"HSS6X4X3/8","t_f":"","weight_per_ft":11.24},{"label":"HSS6X4X5/16","t_f":"","weight_per_ft":9.56},{"label":"HSS6X4X1/4","t_f":"","weight_per_ft":7.79},{"label":"HSS6X3X1/2","t_f":"","weight_per_ft":12.48},{"label":"HSS6X3X3/8","t_f":"","weight_per_ft":9.93},{"label":"HSS6X3X5/16","t_f":"","weight_per_ft":8.46},{"label":"HSS6X3X1/4","t_f":"","weight_per_ft":6.92},{"label":"HSS6X2X3/8","t_f":"","weight_per_ft":8.2},{"label":"HSS6X2X5/16","t_f":"","weight_per_ft":7.01},{"label":"HSS6X2X1/4","t_f":"","weight_per_ft":5.75},{"label":"HSS5X5X1/2","t_f":"","weight_per_ft":14.15},{"label":"HSS5X5X3/8","t_f":"","weight_per_ft":11.24},{"label":"HSS5X5X5/16","t_f":"","weight_per_ft":9.56},{"label":"HSS5X5X1/4","t_f":"","weight_per_ft":7.79},{"label":"HSS5X3X1/2","t_f":"","weight_per_ft":10.97},{"label":"HSS5X3X3/8","t_f":"","weight_per_ft":8.78},{"label":"HSS5X3X5/16","t_f":"","weight_per_ft":7.49},{"label":"HSS5X3X1/4","t_f":"","weight_per_ft":6.14},{"label":"HSS5X2X3/8","t_f":"","weight_per_ft":7.1},{"label":"HSS5X2X5/16","t_f":"","weight_per_ft":6.08},{"label":"HSS5X2X1/4","t_f":"","weight_per_ft":5.02},{"label":"HSS4X4X1/2","t_f":"","weight_per_ft":11.88},{"label":"HSS4X4X3/8","t_f":"","weight_per_ft":9.26},{"label":"HSS4X4X5/16","t_f":"","weight_per_ft":7.91},{"label":"HSS4X4X1/4","t_f":"","weight_per_ft":6.46},{"label":"HSS4X3X3/8","t_f":"","weight_per_ft":7.58},{"label":"HSS4X3X5/16","t_f":"","weight_per_ft":6.49},{"label":"HSS4X3X1/4","t_f":"","weight_per_ft":5.33},{"label":"HSS4X2X3/8","t_f":"","weight_per_ft":5.84},{"label":"HSS4X2X5/16","t_f":"","weight_per_ft":5.02},{"label":"HSS4X2X1/4","t_f":"","weight_per_ft":4.14},{"label":"HSS3.5X3.5X3/8","t_f":"","weight_per_ft":7.94},{"label":"HSS3.5X3.5X5/16","t_f":"","weight_per_ft":6.81},{"label":"HSS3.5X3.5X1/4","t_f":"","weight_per_ft":5.59},{"label":"HSS3X3X3/8","t_f":"","weight_per_ft":6.62},{"label":"HSS3X3X5/16","t_f":"","weight_per_ft":5.71},{"label":"HSS3X3X1/4","t_f":"","weight_per_ft":4.71},{"label":"HSS3X2X5/16","t_f":"","weight_per_ft":4.49},{"label":"HSS3X2X1/4","t_f":"","weight_per_ft":3.72},{"label":"HSS3X1.5X1/4","t_f":"","weight_per_ft":3.29},{"label":"HSS2.5X2.5X5/16","t_f":"","weight_per_ft":4.18},{"label":"HSS2.5X2.5X1/4","t_f":"","weight_per_ft":3.47},{"label":"HSS2X2X1/4","t_f":"","weight_per_ft":2.79},{"label":"HSS2X2X3/16","t_f":"","weight_per_ft":2.18},{"label":"HSS2X2X1/8","t_f":"","weight_per_ft":1.52},{"label":"HSS8.625X0.500","t_f":"","weight_per_ft":43.43},{"label":"HSS8.625X0.375","t_f":"","weight_per_ft":33.07},{"label":"HSS8.625X0.322","t_f":"","weight_per_ft":28.62},{"label":"HSS8.625X0.250","t_f":"","weight_per_ft":22.36},{"label":"HSS6.625X0.500","t_f":"","weight_per_ft":32.74},{"label":"HSS6.625X0.375","t_f":"","weight_per_ft":25.03},{"label":"HSS6.625X0.280","t_f":"","weight_per_ft":18.97},{"label":"HSS6.625X0.250","t_f":"","weight_per_ft":17.02},{"label":"HSS5.563X0.500","t_f":"","weight_per_ft":27.04},{"label":"HSS5.563X0.375","t_f":"","weight_per_ft":20.78},{"label":"HSS5.563X0.258","t_f":"","weight_per_ft":14.62},{"label":"HSS5X0.500","t_f":"","weight_per_ft":24.03},{"label":"HSS5X0.375","t_f":"","weight_per_ft":18.54},{"label":"HSS5X0.258","t_f":"","weight_per_ft":13.08},{"label":"HSS5X0.250","t_f":"","weight_per_ft":12.68},{"label":"HSS4.5X0.375","t_f":"","weight_per_ft":16.52},{"label":"HSS4.5X0.250","t_f":"","weight_per_ft":11.33},{"label":"HSS4X0.375","t_f":"","weight_per_ft":14.49},{"label":"HSS4X0.250","t_f":"","weight_per_ft":10.0},{"label":"HSS4X0.188","t_f":"","weight_per_ft":7.65},{"label":"HSS3.5X0.375","t_f":"","weight_per_ft":12.49},{"label":"HSS3.5X0.250","t_f":"","weight_per_ft":8.66},{"label":"HSS3X0.250","t_f":"","weight_per_ft":7.32},{"label":"HSS3X0.188","t_f":"","weight_per_ft":5.63},{"label":"HSS2.875X0.250","t_f":"","weight_per_ft":6.99},{"label":"HSS2.375X0.250","t_f":"","weight_per_ft":5.67},{"label":"HSS2.375X0.188","t_f":"","weight_per_ft":4.38},{"label":"HSS1.9X0.145","t_f":"","weight_per_ft":2.72},{"label":"HSS1.66X0.140","t_f":"","weight_per_ft":2.27},{"label":"C15X50","t_f":"","weight_per_ft":50.0},{"label":"C15X40","t_f":"","weight_per_ft":40.0},{"label":"C15X33.9","t_f":"","weight_per_ft":33.9},{"label":"C12X30","t_f":"","weight_per_ft":30.0},{"label":"C12X25","t_f":"","weight_per_ft":25.0},{"label":"C12X20.7","t_f":"","weight_per_ft":20.7},{"label":"C10X30","t_f":"","weight_per_ft":30.0},{"label":"C10X25","t_f":"","weight_per_ft":25.0},{"label":"C10X20","t_f":"","weight_per_ft":20.0},{"label":"C10X15.3","t_f":"","weight_per_ft":15.3},{"label":"C9X20","t_f":"","weight_per_ft":20.0},{"label":"C9X15","t_f":"","weight_per_ft":15.0},{"label":"C9X13.4","t_f":"","weight_per_ft":13.4},{"label":"C8X18.75","t_f":"","weight_per_ft":18.75},{"label":"C8X13.75","t_f":"","weight_per_ft":13.75},{"label":"C8X11.5","t_f":"","weight_per_ft":11.5},{"label":"C7X14.75","t_f":"","weight_per_ft":14.75},{"label":"C7X12.25","t_f":"","weight_per_ft":12.25},{"label":"C7X9.8","t_f":"","weight_per_ft":9.8},{"label":"C6X13","t_f":"","weight_per_ft":13.0},{"label":"C6X10.5","t_f":"","weight_per_ft":10.5},{"label":"C6X8.2","t_f":"","weight_per_ft":8.2},{"label":"C5X9","t_f":"","weight_per_ft":9.0},{"label":"C5X6.7","t_f":"","weight_per_ft":6.7},{"label":"C4X7.25","t_f":"","weight_per_ft":7.25},{"label":"C4X5.4","t_f":"","weight_per_ft":5.4},{"label":"C4X4.5","t_f":"","weight_per_ft":4.5},{"label":"C3X6","t_f":"","weight_per_ft":6.0},{"label":"C3X5","t_f":"","weight_per_ft":5.0},{"label":"C3X4.1","t_f":"","weight_per_ft":4.1},{"label":"C3X3.5","t_f":"","weight_per_ft":3.5},{"label":"L8X8X1-1/8","t_f":"","weight_per_ft":56.9},{"label":"L8X8X1","t_f":"","weight_per_ft":51.0},{"label":"L8X8X7/8","t_f":"","weight_per_ft":45.0},{"label":"L8X8X3/4","t_f":"","weight_per_ft":38.9},{"label":"L8X8X5/8","t_f":"","weight_per_ft":32.7},{"label":"L8X8X1/2","t_f":"","weight_per_ft":26.4},{"label":"L8X6X1","t_f":"","weight_per_ft":44.2},{"label":"L8X6X7/8","t_f":"","weight_per_ft":39.1},{"label":"L8X6X3/4","t_f":"","weight_per_ft":33.8},{"label":"L8X6X5/8","t_f":"","weight_per_ft":28.5},{"label":"L8X6X1/2","t_f":"","weight_per_ft":23.0},{"label":"L8X4X1","t_f":"","weight_per_ft":37.4},{"label":"L8X4X3/4","t_f":"","weight_per_ft":28.7},{"label":"L8X4X1/2","t_f":"","weight_per_ft":19.6},{"label":"L6X6X1","t_f":"","weight_per_ft":37.4},{"label":"L6X6X7/8","t_f":"","weight_per_ft":33.1},{"label":"L6X6X3/4","t_f":"","weight_per_ft":28.7},{"label":"L6X6X5/8","t_f":"","weight_per_ft":24.2},{"label":"L6X6X1/2","t_f":"","weight_per_ft":19.6},{"label":"L6X6X3/8","t_f":"","weight_per_ft":14.9},{"label":"L6X6X5/16","t_f":"","weight_per_ft":12.4},{"label":"L6X4X3/4","t_f":"","weight_per_ft":23.6},{"label":"L6X4X5/8","t_f":"","weight_per_ft":20.0},{"label":"L6X4X1/2","t_f":"","weight_per_ft":16.2},{"label":"L6X4X3/8","t_f":"","weight_per_ft":12.3},{"label":"L6X4X5/16","t_f":"","weight_per_ft":10.3},{"label":"L6X3.5X1/2","t_f":"","weight_per_ft":15.3},{"label":"L6X3.5X3/8","t_f":"","weight_per_ft":11.7},{"label":"L5X5X7/8","t_f":"","weight_per_ft":27.2},{"label":"L5X5X3/4","t_f":"","weight_per_ft":23.6},{"label":"L5X5X1/2","t_f":"","weight_per_ft":16.2},{"label":"L5X5X3/8","t_f":"","weight_per_ft":12.3},{"label":"L5X5X5/16","t_f":"","weight_per_ft":10.3},{"label":"L5X3.5X1/2","t_f":"","weight_per_ft":13.6},{"label":"L5X3.5X3/8","t_f":"","weight_per_ft":10.4},{"label":"L5X3X1/2","t_f":"","weight_per_ft":12.8},{"label":"L5X3X3/8","t_f":"","weight_per_ft":9.8},{"label":"L5X3X1/4","t_f":"","weight_per_ft":6.6},{"label":"L4X4X3/4","t_f":"","weight_per_ft":18.5},{"label":"L4X4X5/8","t_f":"","weight_per_ft":15.7},{"label":"L4X4X1/2","t_f":"","weight_per_ft":12.8},{"label":"L4X4X3/8","t_f":"","weight_per_ft":9.8},{"label":"L4X4X5/16","t_f":"","weight_per_ft":8.2},{"label":"L4X4X1/4","t_f":"","weight_per_ft":6.6},{"label":"L4X3.5X1/2","t_f":"","weight_per_ft":11.9},{"label":"L4X3.5X3/8","t_f":"","weight_per_ft":9.1},{"label":"L4X3.5X1/4","t_f":"","weight_per_ft":6.2},{"label":"L4X3X1/2","t_f":"","weight_per_ft":11.1},{"label":"L4X3X3/8","t_f":"","weight_per_ft":8.5},{"label":"L4X3X1/4","t_f":"","weight_per_ft":5.8},{"label":"L3.5X3.5X1/2","t_f":"","weight_per_ft":11.1},{"label":"L3.5X3.5X3/8","t_f":"","weight_per_ft":8.5},{"label":"L3.5X3.5X5/16","t_f":"","weight_per_ft":7.2},{"label":"L3.5X3.5X1/4","t_f":"","weight_per_ft":5.8},{"label":"L3.5X3X1/2","t_f":"","weight_per_ft":10.2},{"label":"L3.5X3X3/8","t_f":"","weight_per_ft":7.9},{"label":"L3.5X3X1/4","t_f":"","weight_per_ft":5.4},{"label":"L3.5X2.5X1/2","t_f":"","weight_per_ft":9.4},{"label":"L3.5X2.5X3/8","t_f":"","weight_per_ft":7.2},{"label":"L3.5X2.5X1/4","t_f":"","weight_per_ft":4.9},{"label":"L3X3X1/2","t_f":"","weight_per_ft":9.4},{"label":"L3X3X3/8","t_f":"","weight_per_ft":7.2},{"label":"L3X3X5/16","t_f":"","weight_per_ft":6.1},{"label":"L3X3X1/4","t_f":"","weight_per_ft":4.9},{"label":"L3X3X3/16","t_f":"","weight_per_ft":3.71},{"label":"L3X2.5X1/2","t_f":"","weight_per_ft":8.5},{"label":"L3X2.5X3/8","t_f":"","weight_per_ft":6.6},{"label":"L3X2.5X1/4","t_f":"","weight_per_ft":4.5},{"label":"L3X2X1/2","t_f":"","weight_per_ft":7.7},{"label":"L3X2X3/8","t_f":"","weight_per_ft":5.9},{"label":"L3X2X1/4","t_f":"","weight_per_ft":4.1},{"label":"L3X2X3/16","t_f":"","weight_per_ft":3.07},{"label":"L2.5X2.5X1/2","t_f":"","weight_per_ft":7.7},{"label":"L2.5X2.5X3/8","t_f":"","weight_per_ft":5.9},{"label":"L2.5X2.5X5/16","t_f":"","weight_per_ft":5.0},{"label":"L2.5X2.5X1/4","t_f":"","weight_per_ft":4.1},{"label":"L2.5X2.5X3/16","t_f":"","weight_per_ft":3.07},{"label":"L2.5X2X3/8","t_f":"","weight_per_ft":5.3},{"label":"L2.5X2X1/4","t_f":"","weight_per_ft":3.62},{"label":"L2.5X2X3/16","t_f":"","weight_per_ft":2.75},{"label":"L2X2X3/8","t_f":"","weight_per_ft":4.7},{"label":"L2X2X5/16","t_f":"","weight_per_ft":3.92},{"label":"L2X2X1/4","t_f":"","weight_per_ft":3.19},{"label":"L2X2X3/16","t_f":"","weight_per_ft":2.44},{"label":"L2X2X1/8","t_f":"","weight_per_ft":1.65},{"label":"S24X121","t_f":"","weight_per_ft":121.0},{"label":"S24X106","t_f":"","weight_per_ft":106.0},{"label":"S24X100","t_f":"","weight_per_ft":100.0},{"label":"S24X90","t_f":"","weight_per_ft":90.0},{"label":"S24X80","t_f":"","weight_per_ft":80.0},{"label":"S20X96","t_f":"","weight_per_ft":96.0},{"label":"S20X86","t_f":"","weight_per_ft":86.0},{"label":"S20X75","t_f":"","weight_per_ft":75.0},{"label":"S20X66","t_f":"","weight_per_ft":66.0},{"label":"S18X70","t_f":"","weight_per_ft":70.0},{"label":"S18X54.7","t_f":"","weight_per_ft":54.7},{"label":"S15X50","t_f":"","weight_per_ft":50.0},{"label":"S15X42.9","t_f":"","weight_per_ft":42.9},{"label":"S12X50","t_f":"","weight_per_ft":50.0},{"label":"S12X40.8","t_f":"","weight_per_ft":40.8},{"label":"S12X35","t_f":"","weight_per_ft":35.0},{"label":"S12X31.8","t_f":"","weight_per_ft":31.8},{"label":"S10X35","t_f":"","weight_per_ft":35.0},{"label":"S10X25.4","t_f":"","weight_per_ft":25.4},{"label":"S8X23","t_f":"","weight_per_ft":23.0},{"label":"S8X18.4","t_f":"","weight_per_ft":18.4},{"label":"S6X17.25","t_f":"","weight_per_ft":17.25},{"label":"S6X12.5","t_f":"","weight_per_ft":12.5},{"label":"S5X10","t_f":"","weight_per_ft":10.0},{"label":"S4X9.5","t_f":"","weight_per_ft":9.5},{"label":"S4X7.7","t_f":"","weight_per_ft":7.7},{"label":"S3X7.5","t_f":"","weight_per_ft":7.5},{"label":"S3X5.7","t_f":"","weight_per_ft":5.7},{"label":"WT18X150","t_f":"","weight_per_ft":150.0},{"label":"WT18X128","t_f":"","weight_per_ft":128.0},{"label":"WT18X116","t_f":"","weight_per_ft":116.0},{"label":"WT18X105","t_f":"","weight_per_ft":105.0},{"label":"WT18X97","t_f":"","weight_per_ft":97.0},{"label":"WT18X85","t_f":"","weight_per_ft":85.0},{"label":"WT18X80","t_f":"","weight_per_ft":80.0},{"label":"WT18X67.5","t_f":"","weight_per_ft":67.5},{"label":"WT15X195.5","t_f":"","weight_per_ft":195.5},{"label":"WT15X146","t_f":"","weight_per_ft":146.0},{"label":"WT15X117.5","t_f":"","weight_per_ft":117.5},{"label":"WT15X105.5","t_f":"","weight_per_ft":105.5},{"label":"WT15X95.5","t_f":"","weight_per_ft":95.5},{"label":"WT15X86.5","t_f":"","weight_per_ft":86.5},{"label":"WT15X74","t_f":"","weight_per_ft":74.0},{"label":"WT15X66","t_f":"","weight_per_ft":66.0},{"label":"WT15X58","t_f":"","weight_per_ft":58.0},{"label":"WT15X49.5","t_f":"","weight_per_ft":49.5},{"label":"WT15X45","t_f":"","weight_per_ft":45.0},{"label":"WT12X185","t_f":"","weight_per_ft":185.0},{"label":"WT12X167.5","t_f":"","weight_per_ft":167.5},{"label":"WT12X153","t_f":"","weight_per_ft":153.0},{"label":"WT12X140","t_f":"","weight_per_ft":140.0},{"label":"WT12X125","t_f":"","weight_per_ft":125.0},{"label":"WT12X114.5","t_f":"","weight_per_ft":114.5},{"label":"WT12X103.5","t_f":"","weight_per_ft":103.5},{"label":"WT12X96","t_f":"","weight_per_ft":96.0},{"label":"WT12X88","t_f":"","weight_per_ft":88.0},{"label":"WT12X81","t_f":"","weight_per_ft":81.0},{"label":"WT12X73","t_f":"","weight_per_ft":73.0},{"label":"WT12X65.5","t_f":"","weight_per_ft":65.5},{"label":"WT12X58.5","t_f":"","weight_per_ft":58.5},{"label":"WT12X52","t_f":"","weight_per_ft":52.0},{"label":"WT12X47","t_f":"","weight_per_ft":47.0},{"label":"WT12X42","t_f":"","weight_per_ft":42.0},{"label":"WT12X38","t_f":"","weight_per_ft":38.0},{"label":"WT12X34","t_f":"","weight_per_ft":34.0},{"label":"WT12X31","t_f":"","weight_per_ft":31.0},{"label":"WT12X27.5","t_f":"","weight_per_ft":27.5},{"label":"Pipe12STD","t_f":"","weight_per_ft":49.6},{"label":"Pipe12X-STG","t_f":"","weight_per_ft":65.4},{"label":"Pipe10STD","t_f":"","weight_per_ft":40.5},{"label":"Pipe10X-STG","t_f":"","weight_per_ft":54.7},{"label":"Pipe8STD","t_f":"","weight_per_ft":28.6},{"label":"Pipe8X-STG","t_f":"","weight_per_ft":43.4},{"label":"Pipe6STD","t_f":"","weight_per_ft":19.0},{"label":"Pipe6X-STG","t_f":"","weight_per_ft":28.6},{"label":"Pipe5STD","t_f":"","weight_per_ft":14.6},{"label":"Pipe5X-STG","t_f":"","weight_per_ft":20.8},{"label":"Pipe4STD","t_f":"","weight_per_ft":10.8},{"label":"Pipe4X-STG","t_f":"","weight_per_ft":15.0},{"label":"Pipe3.5STD","t_f":"","weight_per_ft":9.12},{"label":"Pipe3.5X-STG","t_f":"","weight_per_ft":12.5},{"label":"Pipe3STD","t_f":"","weight_per_ft":7.58},{"label":"Pipe3X-STG","t_f":"","weight_per_ft":10.3},{"label":"Pipe2.5STD","t_f":"","weight_per_ft":5.79},{"label":"Pipe2.5X-STG","t_f":"","weight_per_ft":7.66},{"label":"Pipe2STD","t_f":"","weight_per_ft":3.65},{"label":"Pipe2X-STG","t_f":"","weight_per_ft":5.02},{"label":"Pipe1.5STD","t_f":"","weight_per_ft":2.72},{"label":"Pipe1.5X-STG","t_f":"","weight_per_ft":3.63},{"label":"Pipe1-1/4STD","t_f":"","weight_per_ft":2.27},{"label":"Pipe1-1/4X-STG","t_f":"","weight_per_ft":3.0},{"label":"Pipe1STD","t_f":"","weight_per_ft":1.68},{"label":"Pipe1X-STG","t_f":"","weight_per_ft":2.17},{"label":"Pipe3/4STD","t_f":"","weight_per_ft":1.13},{"label":"Pipe1/2STD","t_f":"","weight_per_ft":0.85},{"label":"W21X48","t_f":"","weight_per_ft":48.0},{"label":"W21X44","t_f":"","weight_per_ft":44.0},{"label":"W18X40","t_f":"","weight_per_ft":40.0},{"label":"W18X35","t_f":"","weight_per_ft":35.0},{"label":"W18X46","t_f":"","weight_per_ft":46.0},{"label":"W18X50","t_f":"","weight_per_ft":50.0},{"label":"W18X55","t_f":"","weight_per_ft":55.0},{"label":"W18X60","t_f":"","weight_per_ft":60.0},{"label":"W18X65","t_f":"","weight_per_ft":65.0},{"label":"W18X71","t_f":"","weight_per_ft":71.0},{"label":"W18X76","t_f":"","weight_per_ft":76.0},{"label":"W16X26","t_f":"","weight_per_ft":26.0},{"label":"W16X31","t_f":"","weight_per_ft":31.0},{"label":"W16X36","t_f":"","weight_per_ft":36.0},{"label":"W16X40","t_f":"","weight_per_ft":40.0},{"label":"W16X45","t_f":"","weight_per_ft":45.0},{"label":"W16X50","t_f":"","weight_per_ft":50.0},{"label":"W16X57","t_f":"","weight_per_ft":57.0},{"label":"W16X67","t_f":"","weight_per_ft":67.0},{"label":"W16X77","t_f":"","weight_per_ft":77.0},{"label":"W14X22","t_f":"","weight_per_ft":22.0},{"label":"W14X26","t_f":"","weight_per_ft":26.0},{"label":"W14X30","t_f":"","weight_per_ft":30.0},{"label":"W14X34","t_f":"","weight_per_ft":34.0},{"label":"W14X38","t_f":"","weight_per_ft":38.0},{"label":"W14X43","t_f":"","weight_per_ft":43.0},{"label":"W14X48","t_f":"","weight_per_ft":48.0},{"label":"W14X53","t_f":"","weight_per_ft":53.0},{"label":"W14X61","t_f":"","weight_per_ft":61.0},{"label":"W14X68","t_f":"","weight_per_ft":68.0},{"label":"W14X74","t_f":"","weight_per_ft":74.0},{"label":"W14X82","t_f":"","weight_per_ft":82.0},{"label":"W14X90","t_f":"","weight_per_ft":90.0},{"label":"W14X99","t_f":"","weight_per_ft":99.0},{"label":"W14X109","t_f":"","weight_per_ft":109.0},{"label":"W14X120","t_f":"","weight_per_ft":120.0},{"label":"W14X132","t_f":"","weight_per_ft":132.0},{"label":"W12X14","t_f":"","weight_per_ft":14.0},{"label":"W12X16","t_f":"","weight_per_ft":16.0},{"label":"W12X19","t_f":"","weight_per_ft":19.0},{"label":"W12X22","t_f":"","weight_per_ft":22.0},{"label":"W12X26","t_f":"","weight_per_ft":26.0},{"label":"W12X30","t_f":"","weight_per_ft":30.0},{"label":"W12X35","t_f":"","weight_per_ft":35.0},{"label":"W12X40","t_f":"","weight_per_ft":40.0},{"label":"W12X45","t_f":"","weight_per_ft":45.0},{"label":"W12X50","t_f":"","weight_per_ft":50.0},{"label":"W12X53","t_f":"","weight_per_ft":53.0},{"label":"W12X58","t_f":"","weight_per_ft":58.0},{"label":"W12X65","t_f":"","weight_per_ft":65.0},{"label":"W12X72","t_f":"","weight_per_ft":72.0},{"label":"W12X79","t_f":"","weight_per_ft":79.0},{"label":"W12X87","t_f":"","weight_per_ft":87.0},{"label":"W12X96","t_f":"","weight_per_ft":96.0},{"label":"W12X106","t_f":"","weight_per_ft":106.0},{"label":"W10X12","t_f":"","weight_per_ft":12.0},{"label":"W10X15","t_f":"","weight_per_ft":15.0},{"label":"W10X17","t_f":"","weight_per_ft":17.0},{"label":"W10X19","t_f":"","weight_per_ft":19.0},{"label":"W10X22","t_f":"","weight_per_ft":22.0},{"label":"W10X26","t_f":"","weight_per_ft":26.0},{"label":"W10X30","t_f":"","weight_per_ft":30.0},{"label":"W10X33","t_f":"","weight_per_ft":33.0},{"label":"W10X39","t_f":"","weight_per_ft":39.0},{"label":"W10X45","t_f":"","weight_per_ft":45.0},{"label":"W10X49","t_f":"","weight_per_ft":49.0},{"label":"W10X54","t_f":"","weight_per_ft":54.0},{"label":"W10X60","t_f":"","weight_per_ft":60.0},{"label":"W10X68","t_f":"","weight_per_ft":68.0},{"label":"W10X77","t_f":"","weight_per_ft":77.0},{"label":"W10X88","t_f":"","weight_per_ft":88.0},{"label":"W10X100","t_f":"","weight_per_ft":100.0},{"label":"W10X112","t_f":"","weight_per_ft":112.0},{"label":"W8X10","t_f":"","weight_per_ft":10.0},{"label":"W8X13","t_f":"","weight_per_ft":13.0},{"label":"W8X15","t_f":"","weight_per_ft":15.0},{"label":"W8X18","t_f":"","weight_per_ft":18.0},{"label":"W8X21","t_f":"","weight_per_ft":21.0},{"label":"W8X24","t_f":"","weight_per_ft":24.0},{"label":"W8X28","t_f":"","weight_per_ft":28.0},{"label":"W8X31","t_f":"","weight_per_ft":31.0},{"label":"W8X35","t_f":"","weight_per_ft":35.0},{"label":"W8X40","t_f":"","weight_per_ft":40.0},{"label":"W8X48","t_f":"","weight_per_ft":48.0},{"label":"W8X58","t_f":"","weight_per_ft":58.0},{"label":"W8X67","t_f":"","weight_per_ft":67.0},{"label":"W6X8.5","t_f":"","weight_per_ft":8.5},{"label":"W6X9","t_f":"","weight_per_ft":9.0},{"label":"W6X12","t_f":"","weight_per_ft":12.0},{"label":"W6X15","t_f":"","weight_per_ft":15.0},{"label":"W6X16","t_f":"","weight_per_ft":16.0},{"label":"W6X20","t_f":"","weight_per_ft":20.0},{"label":"W6X25","t_f":"","weight_per_ft":25.0},{"label":"W5X16","t_f":"","weight_per_ft":16.0},{"label":"W5X19","t_f":"","weight_per_ft":19.0},{"label":"W4X13","t_f":"","weight_per_ft":13.0},{"label":"MC18X42.7","t_f":"","weight_per_ft":42.7},{"label":"MC13X50","t_f":"","weight_per_ft":50.0},{"label":"MC13X40","t_f":"","weight_per_ft":40.0},{"label":"MC13X35","t_f":"","weight_per_ft":35.0},{"label":"MC13X31.8","t_f":"","weight_per_ft":31.8},{"label":"MC12X50","t_f":"","weight_per_ft":50.0},{"label":"MC12X45","t_f":"","weight_per_ft":45.0},{"label":"MC12X40","t_f":"","weight_per_ft":40.0},{"label":"MC12X35","t_f":"","weight_per_ft":35.0},{"label":"MC12X31","t_f":"","weight_per_ft":31.0},{"label":"MC10X41.1","t_f":"","weight_per_ft":41.1},{"label":"MC10X33.6","t_f":"","weight_per_ft":33.6},{"label":"MC10X28.5","t_f":"","weight_per_ft":28.5},{"label":"MC10X25","t_f":"","weight_per_ft":25.0},{"label":"MC10X22","t_f":"","weight_per_ft":22.0},{"label":"MC8X22.8","t_f":"","weight_per_ft":22.8},{"label":"MC8X21.4","t_f":"","weight_per_ft":21.4},{"label":"MC8X20","t_f":"","weight_per_ft":20.0},{"label":"MC8X18.7","t_f":"","weight_per_ft":18.7},{"label":"MC6X18","t_f":"","weight_per_ft":18.0},{"label":"MC6X15.3","t_f":"","weight_per_ft":15.3},{"label":"MC6X12","t_f":"","weight_per_ft":12.0},{"label":"L8X8X9/16","t_f":"","weight_per_ft":29.6},{"label":"L8X6X9/16","t_f":"","weight_per_ft":25.7},{"label":"L8X6X7/16","t_f":"","weight_per_ft":20.2},{"label":"L8X6X3/8","t_f":"","weight_per_ft":17.4},{"label":"L8X4X7/8","t_f":"","weight_per_ft":33.1},{"label":"L8X4X5/8","t_f":"","weight_per_ft":24.2},{"label":"L8X4X9/16","t_f":"","weight_per_ft":21.8},{"label":"L8X4X7/16","t_f":"","weight_per_ft":17.2},{"label":"L8X4X3/8","t_f":"","weight_per_ft":14.8},{"label":"L7X4X3/4","t_f":"","weight_per_ft":26.2},{"label":"L7X4X5/8","t_f":"","weight_per_ft":22.1},{"label":"L7X4X1/2","t_f":"","weight_per_ft":17.9},{"label":"L7X4X7/16","t_f":"","weight_per_ft":15.7},{"label":"L7X4X3/8","t_f":"","weight_per_ft":13.6},{"label":"L6X6X9/16","t_f":"","weight_per_ft":21.9},{"label":"L6X6X7/16","t_f":"","weight_per_ft":17.2},{"label":"L6X4X7/8","t_f":"","weight_per_ft":27.2},{"label":"L6X4X9/16","t_f":"","weight_per_ft":18.1},{"label":"L6X4X7/16","t_f":"","weight_per_ft":14.3},{"label":"L6X3.5X5/16","t_f":"","weight_per_ft":9.8},{"label":"L5X5X5/8","t_f":"","weight_per_ft":20.0},{"label":"L5X5X7/16","t_f":"","weight_per_ft":14.3},{"label":"L5X3.5X3/4","t_f":"","weight_per_ft":19.8},{"label":"L5X3.5X5/16","t_f":"","weight_per_ft":8.7},{"label":"L5X3.5X1/4","t_f":"","weight_per_ft":7.0},{"label":"L5X3X7/16","t_f":"","weight_per_ft":11.3},{"label":"L5X3X5/16","t_f":"","weight_per_ft":8.2},{"label":"L4X4X7/16","t_f":"","weight_per_ft":11.3},{"label":"L4X4X3/16","t_f":"","weight_per_ft":5.0},{"label":"L4X3.5X5/16","t_f":"","weight_per_ft":7.7},{"label":"L4X3X5/16","t_f":"","weight_per_ft":7.2},{"label":"L3.5X3.5X7/16","t_f":"","weight_per_ft":9.8},{"label":"L3.5X3.5X3/16","t_f":"","weight_per_ft":4.4},{"label":"L3.5X3X7/16","t_f":"","weight_per_ft":9.1},{"label":"L3.5X3X5/16","t_f":"","weight_per_ft":6.6},{"label":"L3.5X2.5X5/16","t_f":"","weight_per_ft":6.1},{"label":"L3.5X2.5X3/16","t_f":"","weight_per_ft":3.71},{"label":"L3X3X7/16","t_f":"","weight_per_ft":8.3},{"label":"L3X2.5X7/16","t_f":"","weight_per_ft":7.6},{"label":"L3X2.5X5/16","t_f":"","weight_per_ft":5.6},{"label":"L3X2.5X3/16","t_f":"","weight_per_ft":3.39},{"label":"L3X2X5/16","t_f":"","weight_per_ft":5.0},{"label":"L2.5X2X5/16","t_f":"","weight_per_ft":4.5},{"label":"W21X50","t_f":"","weight_per_ft":50.0},{"label":"W21X68","t_f":"","weight_per_ft":68.0},{"label":"C12X14.3","t_f":"","weight_per_ft":14.3},{"label":"MC12X10.6","t_f":"","weight_per_ft":10.6},{"label":"HSS1.5X1.5X3/16","t_f":"","weight_per_ft":3.04}]
+[
+  {
+    "label": "W44X335",
+    "t_f": "F",
+    "weight_per_ft": 335.0
+  },
+  {
+    "label": "W44X290",
+    "t_f": "F",
+    "weight_per_ft": 290.0
+  },
+  {
+    "label": "W44X262",
+    "t_f": "F",
+    "weight_per_ft": 262.0
+  },
+  {
+    "label": "W44X230",
+    "t_f": "F",
+    "weight_per_ft": 230.0
+  },
+  {
+    "label": "W40X593",
+    "t_f": "T",
+    "weight_per_ft": 593.0
+  },
+  {
+    "label": "W40X503",
+    "t_f": "T",
+    "weight_per_ft": 503.0
+  },
+  {
+    "label": "W40X431",
+    "t_f": "T",
+    "weight_per_ft": 431.0
+  },
+  {
+    "label": "W40X397",
+    "t_f": "T",
+    "weight_per_ft": 397.0
+  },
+  {
+    "label": "W40X372",
+    "t_f": "T",
+    "weight_per_ft": 372.0
+  },
+  {
+    "label": "W40X362",
+    "t_f": "T",
+    "weight_per_ft": 362.0
+  },
+  {
+    "label": "W40X324",
+    "t_f": "F",
+    "weight_per_ft": 324.0
+  },
+  {
+    "label": "W40X297",
+    "t_f": "F",
+    "weight_per_ft": 297.0
+  },
+  {
+    "label": "W40X277",
+    "t_f": "F",
+    "weight_per_ft": 277.0
+  },
+  {
+    "label": "W40X249",
+    "t_f": "F",
+    "weight_per_ft": 249.0
+  },
+  {
+    "label": "W40X215",
+    "t_f": "F",
+    "weight_per_ft": 215.0
+  },
+  {
+    "label": "W40X199",
+    "t_f": "F",
+    "weight_per_ft": 199.0
+  },
+  {
+    "label": "W40X392",
+    "t_f": "T",
+    "weight_per_ft": 392.0
+  },
+  {
+    "label": "W40X331",
+    "t_f": "T",
+    "weight_per_ft": 331.0
+  },
+  {
+    "label": "W40X327",
+    "t_f": "T",
+    "weight_per_ft": 327.0
+  },
+  {
+    "label": "W40X294",
+    "t_f": "F",
+    "weight_per_ft": 294.0
+  },
+  {
+    "label": "W40X278",
+    "t_f": "F",
+    "weight_per_ft": 278.0
+  },
+  {
+    "label": "W40X264",
+    "t_f": "F",
+    "weight_per_ft": 264.0
+  },
+  {
+    "label": "W40X235",
+    "t_f": "F",
+    "weight_per_ft": 235.0
+  },
+  {
+    "label": "W40X211",
+    "t_f": "F",
+    "weight_per_ft": 211.0
+  },
+  {
+    "label": "W40X183",
+    "t_f": "F",
+    "weight_per_ft": 183.0
+  },
+  {
+    "label": "W40X167",
+    "t_f": "F",
+    "weight_per_ft": 167.0
+  },
+  {
+    "label": "W40X149",
+    "t_f": "F",
+    "weight_per_ft": 149.0
+  },
+  {
+    "label": "W36X800",
+    "t_f": "T",
+    "weight_per_ft": 800.0
+  },
+  {
+    "label": "W36X652",
+    "t_f": "T",
+    "weight_per_ft": 652.0
+  },
+  {
+    "label": "W36X529",
+    "t_f": "T",
+    "weight_per_ft": 529.0
+  },
+  {
+    "label": "W36X487",
+    "t_f": "T",
+    "weight_per_ft": 487.0
+  },
+  {
+    "label": "W36X441",
+    "t_f": "T",
+    "weight_per_ft": 442.0
+  },
+  {
+    "label": "W36X395",
+    "t_f": "T",
+    "weight_per_ft": 395.0
+  },
+  {
+    "label": "W36X361",
+    "t_f": "T",
+    "weight_per_ft": 361.0
+  },
+  {
+    "label": "W36X330",
+    "t_f": "F",
+    "weight_per_ft": 330.0
+  },
+  {
+    "label": "W36X302",
+    "t_f": "F",
+    "weight_per_ft": 302.0
+  },
+  {
+    "label": "W36X282",
+    "t_f": "F",
+    "weight_per_ft": 282.0
+  },
+  {
+    "label": "W36X262",
+    "t_f": "F",
+    "weight_per_ft": 262.0
+  },
+  {
+    "label": "W36X247",
+    "t_f": "F",
+    "weight_per_ft": 247.0
+  },
+  {
+    "label": "W36X231",
+    "t_f": "F",
+    "weight_per_ft": 231.0
+  },
+  {
+    "label": "W36X256",
+    "t_f": "T",
+    "weight_per_ft": 256.0
+  },
+  {
+    "label": "W36X232",
+    "t_f": "T",
+    "weight_per_ft": 232.0
+  },
+  {
+    "label": "W36X210",
+    "t_f": "T",
+    "weight_per_ft": 210.0
+  },
+  {
+    "label": "W36X194",
+    "t_f": "F",
+    "weight_per_ft": 194.0
+  },
+  {
+    "label": "W36X182",
+    "t_f": "F",
+    "weight_per_ft": 182.0
+  },
+  {
+    "label": "W36X170",
+    "t_f": "F",
+    "weight_per_ft": 170.0
+  },
+  {
+    "label": "W36X160",
+    "t_f": "F",
+    "weight_per_ft": 160.0
+  },
+  {
+    "label": "W36X150",
+    "t_f": "F",
+    "weight_per_ft": 150.0
+  },
+  {
+    "label": "W36X135",
+    "t_f": "F",
+    "weight_per_ft": 135.0
+  },
+  {
+    "label": "W33X387",
+    "t_f": "T",
+    "weight_per_ft": 387.0
+  },
+  {
+    "label": "W33X354",
+    "t_f": "T",
+    "weight_per_ft": 354.0
+  },
+  {
+    "label": "W33X318",
+    "t_f": "T",
+    "weight_per_ft": 318.0
+  },
+  {
+    "label": "W33X291",
+    "t_f": "T",
+    "weight_per_ft": 291.0
+  },
+  {
+    "label": "W33X263",
+    "t_f": "T",
+    "weight_per_ft": 263.0
+  },
+  {
+    "label": "W33X241",
+    "t_f": "F",
+    "weight_per_ft": 241.0
+  },
+  {
+    "label": "W33X221",
+    "t_f": "F",
+    "weight_per_ft": 221.0
+  },
+  {
+    "label": "W33X201",
+    "t_f": "F",
+    "weight_per_ft": 201.0
+  },
+  {
+    "label": "W33X169",
+    "t_f": "F",
+    "weight_per_ft": 169.0
+  },
+  {
+    "label": "W33X152",
+    "t_f": "F",
+    "weight_per_ft": 152.0
+  },
+  {
+    "label": "W33X141",
+    "t_f": "F",
+    "weight_per_ft": 141.0
+  },
+  {
+    "label": "W33X130",
+    "t_f": "F",
+    "weight_per_ft": 130.0
+  },
+  {
+    "label": "W33X118",
+    "t_f": "F",
+    "weight_per_ft": 118.0
+  },
+  {
+    "label": "W30X391",
+    "t_f": "T",
+    "weight_per_ft": 391.0
+  },
+  {
+    "label": "W30X357",
+    "t_f": "T",
+    "weight_per_ft": 357.0
+  },
+  {
+    "label": "W30X326",
+    "t_f": "T",
+    "weight_per_ft": 326.0
+  },
+  {
+    "label": "W30X292",
+    "t_f": "T",
+    "weight_per_ft": 292.0
+  },
+  {
+    "label": "W30X261",
+    "t_f": "T",
+    "weight_per_ft": 261.0
+  },
+  {
+    "label": "W30X235",
+    "t_f": "T",
+    "weight_per_ft": 235.0
+  },
+  {
+    "label": "W30X211",
+    "t_f": "F",
+    "weight_per_ft": 211.0
+  },
+  {
+    "label": "W30X191",
+    "t_f": "F",
+    "weight_per_ft": 191.0
+  },
+  {
+    "label": "W30X173",
+    "t_f": "F",
+    "weight_per_ft": 173.0
+  },
+  {
+    "label": "W30X148",
+    "t_f": "F",
+    "weight_per_ft": 148.0
+  },
+  {
+    "label": "W30X132",
+    "t_f": "F",
+    "weight_per_ft": 132.0
+  },
+  {
+    "label": "W30X124",
+    "t_f": "F",
+    "weight_per_ft": 124.0
+  },
+  {
+    "label": "W30X116",
+    "t_f": "F",
+    "weight_per_ft": 116.0
+  },
+  {
+    "label": "W30X108",
+    "t_f": "F",
+    "weight_per_ft": 108.0
+  },
+  {
+    "label": "W30X99",
+    "t_f": "F",
+    "weight_per_ft": 99.0
+  },
+  {
+    "label": "W30X90",
+    "t_f": "F",
+    "weight_per_ft": 90.0
+  },
+  {
+    "label": "W27X539",
+    "t_f": "T",
+    "weight_per_ft": 539.0
+  },
+  {
+    "label": "W27X368",
+    "t_f": "T",
+    "weight_per_ft": 368.0
+  },
+  {
+    "label": "W27X336",
+    "t_f": "T",
+    "weight_per_ft": 336.0
+  },
+  {
+    "label": "W27X307",
+    "t_f": "T",
+    "weight_per_ft": 307.0
+  },
+  {
+    "label": "W27X281",
+    "t_f": "T",
+    "weight_per_ft": 281.0
+  },
+  {
+    "label": "W27X258",
+    "t_f": "T",
+    "weight_per_ft": 258.0
+  },
+  {
+    "label": "W27X235",
+    "t_f": "T",
+    "weight_per_ft": 235.0
+  },
+  {
+    "label": "W27X217",
+    "t_f": "F",
+    "weight_per_ft": 217.0
+  },
+  {
+    "label": "W27X194",
+    "t_f": "F",
+    "weight_per_ft": 194.0
+  },
+  {
+    "label": "W27X178",
+    "t_f": "F",
+    "weight_per_ft": 178.0
+  },
+  {
+    "label": "W27X161",
+    "t_f": "F",
+    "weight_per_ft": 161.0
+  },
+  {
+    "label": "W27X146",
+    "t_f": "F",
+    "weight_per_ft": 146.0
+  },
+  {
+    "label": "W27X129",
+    "t_f": "F",
+    "weight_per_ft": 129.0
+  },
+  {
+    "label": "W27X114",
+    "t_f": "F",
+    "weight_per_ft": 114.0
+  },
+  {
+    "label": "W27X102",
+    "t_f": "F",
+    "weight_per_ft": 102.0
+  },
+  {
+    "label": "W27X94",
+    "t_f": "F",
+    "weight_per_ft": 94.0
+  },
+  {
+    "label": "W27X84",
+    "t_f": "F",
+    "weight_per_ft": 84.0
+  },
+  {
+    "label": "W24X370",
+    "t_f": "T",
+    "weight_per_ft": 370.0
+  },
+  {
+    "label": "W24X335",
+    "t_f": "T",
+    "weight_per_ft": 335.0
+  },
+  {
+    "label": "W24X306",
+    "t_f": "T",
+    "weight_per_ft": 306.0
+  },
+  {
+    "label": "W24X279",
+    "t_f": "T",
+    "weight_per_ft": 279.0
+  },
+  {
+    "label": "W24X250",
+    "t_f": "T",
+    "weight_per_ft": 250.0
+  },
+  {
+    "label": "W24X229",
+    "t_f": "T",
+    "weight_per_ft": 229.0
+  },
+  {
+    "label": "W24X207",
+    "t_f": "T",
+    "weight_per_ft": 207.0
+  },
+  {
+    "label": "W24X192",
+    "t_f": "F",
+    "weight_per_ft": 192.0
+  },
+  {
+    "label": "W24X176",
+    "t_f": "F",
+    "weight_per_ft": 176.0
+  },
+  {
+    "label": "W24X162",
+    "t_f": "F",
+    "weight_per_ft": 162.0
+  },
+  {
+    "label": "W24X146",
+    "t_f": "F",
+    "weight_per_ft": 146.0
+  },
+  {
+    "label": "W24X131",
+    "t_f": "F",
+    "weight_per_ft": 131.0
+  },
+  {
+    "label": "W24X117",
+    "t_f": "F",
+    "weight_per_ft": 117.0
+  },
+  {
+    "label": "W24X104",
+    "t_f": "F",
+    "weight_per_ft": 104.0
+  },
+  {
+    "label": "W24X103",
+    "t_f": "F",
+    "weight_per_ft": 103.0
+  },
+  {
+    "label": "W24X94",
+    "t_f": "F",
+    "weight_per_ft": 94.0
+  },
+  {
+    "label": "W24X84",
+    "t_f": "F",
+    "weight_per_ft": 84.0
+  },
+  {
+    "label": "W24X76",
+    "t_f": "F",
+    "weight_per_ft": 76.0
+  },
+  {
+    "label": "W24X68",
+    "t_f": "F",
+    "weight_per_ft": 68.0
+  },
+  {
+    "label": "W24X62",
+    "t_f": "F",
+    "weight_per_ft": 62.0
+  },
+  {
+    "label": "W24X55",
+    "t_f": "F",
+    "weight_per_ft": 55.0
+  },
+  {
+    "label": "HSS20X12X5/8",
+    "t_f": "",
+    "weight_per_ft": 127.37
+  },
+  {
+    "label": "HSS20X12X1/2",
+    "t_f": "",
+    "weight_per_ft": 103.3
+  },
+  {
+    "label": "HSS20X12X3/8",
+    "t_f": "",
+    "weight_per_ft": 78.52
+  },
+  {
+    "label": "HSS20X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 76.07
+  },
+  {
+    "label": "HSS20X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 58.1
+  },
+  {
+    "label": "HSS18X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 93.34
+  },
+  {
+    "label": "HSS18X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 76.07
+  },
+  {
+    "label": "HSS18X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 58.1
+  },
+  {
+    "label": "HSS16X16X5/8",
+    "t_f": "",
+    "weight_per_ft": 127.37
+  },
+  {
+    "label": "HSS16X16X1/2",
+    "t_f": "",
+    "weight_per_ft": 103.3
+  },
+  {
+    "label": "HSS16X16X3/8",
+    "t_f": "",
+    "weight_per_ft": 78.52
+  },
+  {
+    "label": "HSS16X12X5/8",
+    "t_f": "",
+    "weight_per_ft": 110.36
+  },
+  {
+    "label": "HSS16X12X1/2",
+    "t_f": "",
+    "weight_per_ft": 89.68
+  },
+  {
+    "label": "HSS16X12X3/8",
+    "t_f": "",
+    "weight_per_ft": 68.31
+  },
+  {
+    "label": "HSS16X8X5/8",
+    "t_f": "",
+    "weight_per_ft": 93.34
+  },
+  {
+    "label": "HSS16X8X1/2",
+    "t_f": "",
+    "weight_per_ft": 76.07
+  },
+  {
+    "label": "HSS16X8X3/8",
+    "t_f": "",
+    "weight_per_ft": 58.1
+  },
+  {
+    "label": "HSS16X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 62.46
+  },
+  {
+    "label": "HSS16X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 47.9
+  },
+  {
+    "label": "HSS14X10X5/8",
+    "t_f": "",
+    "weight_per_ft": 93.34
+  },
+  {
+    "label": "HSS14X10X1/2",
+    "t_f": "",
+    "weight_per_ft": 76.07
+  },
+  {
+    "label": "HSS14X10X3/8",
+    "t_f": "",
+    "weight_per_ft": 58.1
+  },
+  {
+    "label": "HSS12X12X5/8",
+    "t_f": "",
+    "weight_per_ft": 93.34
+  },
+  {
+    "label": "HSS12X12X1/2",
+    "t_f": "",
+    "weight_per_ft": 76.07
+  },
+  {
+    "label": "HSS12X12X3/8",
+    "t_f": "",
+    "weight_per_ft": 58.1
+  },
+  {
+    "label": "HSS12X8X5/8",
+    "t_f": "",
+    "weight_per_ft": 76.33
+  },
+  {
+    "label": "HSS12X8X1/2",
+    "t_f": "",
+    "weight_per_ft": 62.46
+  },
+  {
+    "label": "HSS12X8X3/8",
+    "t_f": "",
+    "weight_per_ft": 47.9
+  },
+  {
+    "label": "HSS12X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 67.82
+  },
+  {
+    "label": "HSS12X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 55.66
+  },
+  {
+    "label": "HSS12X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 42.79
+  },
+  {
+    "label": "HSS12X4X5/8",
+    "t_f": "",
+    "weight_per_ft": 59.32
+  },
+  {
+    "label": "HSS12X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 48.85
+  },
+  {
+    "label": "HSS12X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 37.69
+  },
+  {
+    "label": "HSS10X10X5/8",
+    "t_f": "",
+    "weight_per_ft": 76.33
+  },
+  {
+    "label": "HSS10X10X1/2",
+    "t_f": "",
+    "weight_per_ft": 62.46
+  },
+  {
+    "label": "HSS10X10X3/8",
+    "t_f": "",
+    "weight_per_ft": 47.9
+  },
+  {
+    "label": "HSS10X10X5/16",
+    "t_f": "",
+    "weight_per_ft": 40.35
+  },
+  {
+    "label": "HSS10X10X1/4",
+    "t_f": "",
+    "weight_per_ft": 32.63
+  },
+  {
+    "label": "HSS10X8X1/2",
+    "t_f": "",
+    "weight_per_ft": 55.66
+  },
+  {
+    "label": "HSS10X8X3/8",
+    "t_f": "",
+    "weight_per_ft": 42.79
+  },
+  {
+    "label": "HSS10X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 48.85
+  },
+  {
+    "label": "HSS10X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 37.69
+  },
+  {
+    "label": "HSS10X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 42.05
+  },
+  {
+    "label": "HSS10X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 32.58
+  },
+  {
+    "label": "HSS10X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 27.48
+  },
+  {
+    "label": "HSS8X8X5/8",
+    "t_f": "",
+    "weight_per_ft": 59.32
+  },
+  {
+    "label": "HSS8X8X1/2",
+    "t_f": "",
+    "weight_per_ft": 48.85
+  },
+  {
+    "label": "HSS8X8X3/8",
+    "t_f": "",
+    "weight_per_ft": 37.69
+  },
+  {
+    "label": "HSS8X8X5/16",
+    "t_f": "",
+    "weight_per_ft": 31.84
+  },
+  {
+    "label": "HSS8X8X1/4",
+    "t_f": "",
+    "weight_per_ft": 25.82
+  },
+  {
+    "label": "HSS8X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 50.81
+  },
+  {
+    "label": "HSS8X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 42.05
+  },
+  {
+    "label": "HSS8X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 32.58
+  },
+  {
+    "label": "HSS8X6X5/16",
+    "t_f": "",
+    "weight_per_ft": 27.59
+  },
+  {
+    "label": "HSS8X6X1/4",
+    "t_f": "",
+    "weight_per_ft": 22.42
+  },
+  {
+    "label": "HSS8X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 35.24
+  },
+  {
+    "label": "HSS8X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 27.48
+  },
+  {
+    "label": "HSS8X4X5/16",
+    "t_f": "",
+    "weight_per_ft": 23.34
+  },
+  {
+    "label": "HSS8X4X1/4",
+    "t_f": "",
+    "weight_per_ft": 19.02
+  },
+  {
+    "label": "HSS8X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 31.84
+  },
+  {
+    "label": "HSS8X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 24.93
+  },
+  {
+    "label": "HSS8X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 21.21
+  },
+  {
+    "label": "HSS8X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 17.32
+  },
+  {
+    "label": "HSS8X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 22.37
+  },
+  {
+    "label": "HSS8X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 19.08
+  },
+  {
+    "label": "HSS8X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 15.62
+  },
+  {
+    "label": "HSS6X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 42.3
+  },
+  {
+    "label": "HSS6X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 35.24
+  },
+  {
+    "label": "HSS6X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 27.48
+  },
+  {
+    "label": "HSS6X6X5/16",
+    "t_f": "",
+    "weight_per_ft": 23.34
+  },
+  {
+    "label": "HSS6X6X1/4",
+    "t_f": "",
+    "weight_per_ft": 19.02
+  },
+  {
+    "label": "HSS6X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 28.43
+  },
+  {
+    "label": "HSS6X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 22.37
+  },
+  {
+    "label": "HSS6X4X5/16",
+    "t_f": "",
+    "weight_per_ft": 19.08
+  },
+  {
+    "label": "HSS6X4X1/4",
+    "t_f": "",
+    "weight_per_ft": 15.62
+  },
+  {
+    "label": "HSS6X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 25.03
+  },
+  {
+    "label": "HSS6X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 19.82
+  },
+  {
+    "label": "HSS6X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 16.96
+  },
+  {
+    "label": "HSS6X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 13.91
+  },
+  {
+    "label": "HSS6X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 17.27
+  },
+  {
+    "label": "HSS6X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 14.83
+  },
+  {
+    "label": "HSS6X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 12.21
+  },
+  {
+    "label": "HSS5X5X1/2",
+    "t_f": "",
+    "weight_per_ft": 28.43
+  },
+  {
+    "label": "HSS5X5X3/8",
+    "t_f": "",
+    "weight_per_ft": 22.37
+  },
+  {
+    "label": "HSS5X5X5/16",
+    "t_f": "",
+    "weight_per_ft": 19.08
+  },
+  {
+    "label": "HSS5X5X1/4",
+    "t_f": "",
+    "weight_per_ft": 15.62
+  },
+  {
+    "label": "HSS5X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 21.63
+  },
+  {
+    "label": "HSS5X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 17.27
+  },
+  {
+    "label": "HSS5X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 14.83
+  },
+  {
+    "label": "HSS5X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 12.21
+  },
+  {
+    "label": "HSS5X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 14.72
+  },
+  {
+    "label": "HSS5X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 12.7
+  },
+  {
+    "label": "HSS5X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 10.51
+  },
+  {
+    "label": "HSS4X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 21.63
+  },
+  {
+    "label": "HSS4X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 17.27
+  },
+  {
+    "label": "HSS4X4X5/16",
+    "t_f": "",
+    "weight_per_ft": 14.83
+  },
+  {
+    "label": "HSS4X4X1/4",
+    "t_f": "",
+    "weight_per_ft": 12.21
+  },
+  {
+    "label": "HSS4X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 14.72
+  },
+  {
+    "label": "HSS4X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 12.7
+  },
+  {
+    "label": "HSS4X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 10.51
+  },
+  {
+    "label": "HSS4X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 12.17
+  },
+  {
+    "label": "HSS4X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 10.58
+  },
+  {
+    "label": "HSS4X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 8.81
+  },
+  {
+    "label": "HSS3.5X3.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 14.72
+  },
+  {
+    "label": "HSS3.5X3.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 12.7
+  },
+  {
+    "label": "HSS3.5X3.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 10.51
+  },
+  {
+    "label": "HSS3X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 12.17
+  },
+  {
+    "label": "HSS3X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 10.58
+  },
+  {
+    "label": "HSS3X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 8.81
+  },
+  {
+    "label": "HSS3X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 8.45
+  },
+  {
+    "label": "HSS3X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 7.11
+  },
+  {
+    "label": "HSS3X1.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 6.26
+  },
+  {
+    "label": "HSS2.5X2.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 8.45
+  },
+  {
+    "label": "HSS2.5X2.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 7.11
+  },
+  {
+    "label": "HSS2X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 5.41
+  },
+  {
+    "label": "HSS2X2X3/16",
+    "t_f": "",
+    "weight_per_ft": 4.32
+  },
+  {
+    "label": "HSS2X2X1/8",
+    "t_f": "",
+    "weight_per_ft": 3.05
+  },
+  {
+    "label": "HSS8.625X0.500",
+    "t_f": "",
+    "weight_per_ft": 43.43
+  },
+  {
+    "label": "HSS8.625X0.375",
+    "t_f": "",
+    "weight_per_ft": 33.07
+  },
+  {
+    "label": "HSS8.625X0.322",
+    "t_f": "",
+    "weight_per_ft": 28.58
+  },
+  {
+    "label": "HSS8.625X0.250",
+    "t_f": "",
+    "weight_per_ft": 22.38
+  },
+  {
+    "label": "HSS6.625X0.500",
+    "t_f": "",
+    "weight_per_ft": 32.74
+  },
+  {
+    "label": "HSS6.625X0.375",
+    "t_f": "",
+    "weight_per_ft": 25.06
+  },
+  {
+    "label": "HSS6.625X0.280",
+    "t_f": "",
+    "weight_per_ft": 18.99
+  },
+  {
+    "label": "HSS6.625X0.250",
+    "t_f": "",
+    "weight_per_ft": 17.04
+  },
+  {
+    "label": "HSS5.563X0.500",
+    "t_f": "",
+    "weight_per_ft": 27.06
+  },
+  {
+    "label": "HSS5.563X0.375",
+    "t_f": "",
+    "weight_per_ft": 20.8
+  },
+  {
+    "label": "HSS5.563X0.258",
+    "t_f": "",
+    "weight_per_ft": 14.63
+  },
+  {
+    "label": "HSS5X0.500",
+    "t_f": "",
+    "weight_per_ft": 24.05
+  },
+  {
+    "label": "HSS5X0.375",
+    "t_f": "",
+    "weight_per_ft": 18.54
+  },
+  {
+    "label": "HSS5X0.258",
+    "t_f": "",
+    "weight_per_ft": 13.08
+  },
+  {
+    "label": "HSS5X0.250",
+    "t_f": "",
+    "weight_per_ft": 12.69
+  },
+  {
+    "label": "HSS4.5X0.375",
+    "t_f": "",
+    "weight_per_ft": 16.54
+  },
+  {
+    "label": "HSS4.5X0.250",
+    "t_f": "",
+    "weight_per_ft": 11.36
+  },
+  {
+    "label": "HSS4X0.375",
+    "t_f": "",
+    "weight_per_ft": 14.53
+  },
+  {
+    "label": "HSS4X0.250",
+    "t_f": "",
+    "weight_per_ft": 10.0
+  },
+  {
+    "label": "HSS4X0.188",
+    "t_f": "",
+    "weight_per_ft": 7.66
+  },
+  {
+    "label": "HSS3.5X0.375",
+    "t_f": "",
+    "weight_per_ft": 12.53
+  },
+  {
+    "label": "HSS3.5X0.250",
+    "t_f": "",
+    "weight_per_ft": 8.69
+  },
+  {
+    "label": "HSS3X0.250",
+    "t_f": "",
+    "weight_per_ft": 7.35
+  },
+  {
+    "label": "HSS3X0.188",
+    "t_f": "",
+    "weight_per_ft": 5.65
+  },
+  {
+    "label": "HSS2.875X0.250",
+    "t_f": "",
+    "weight_per_ft": 7.02
+  },
+  {
+    "label": "HSS2.375X0.250",
+    "t_f": "",
+    "weight_per_ft": 5.68
+  },
+  {
+    "label": "HSS2.375X0.188",
+    "t_f": "",
+    "weight_per_ft": 4.4
+  },
+  {
+    "label": "HSS1.9X0.145",
+    "t_f": "",
+    "weight_per_ft": 2.72
+  },
+  {
+    "label": "HSS1.66X0.140",
+    "t_f": "",
+    "weight_per_ft": 2.27
+  },
+  {
+    "label": "C15X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "C15X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "C15X33.9",
+    "t_f": "",
+    "weight_per_ft": 33.9
+  },
+  {
+    "label": "C12X30",
+    "t_f": "",
+    "weight_per_ft": 30.0
+  },
+  {
+    "label": "C12X25",
+    "t_f": "",
+    "weight_per_ft": 25.0
+  },
+  {
+    "label": "C12X20.7",
+    "t_f": "",
+    "weight_per_ft": 20.7
+  },
+  {
+    "label": "C10X30",
+    "t_f": "",
+    "weight_per_ft": 30.0
+  },
+  {
+    "label": "C10X25",
+    "t_f": "",
+    "weight_per_ft": 25.0
+  },
+  {
+    "label": "C10X20",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "C10X15.3",
+    "t_f": "",
+    "weight_per_ft": 15.3
+  },
+  {
+    "label": "C9X20",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "C9X15",
+    "t_f": "",
+    "weight_per_ft": 15.0
+  },
+  {
+    "label": "C9X13.4",
+    "t_f": "",
+    "weight_per_ft": 13.4
+  },
+  {
+    "label": "C8X18.75",
+    "t_f": "",
+    "weight_per_ft": 18.75
+  },
+  {
+    "label": "C8X13.75",
+    "t_f": "",
+    "weight_per_ft": 13.75
+  },
+  {
+    "label": "C8X11.5",
+    "t_f": "",
+    "weight_per_ft": 11.5
+  },
+  {
+    "label": "C7X14.75",
+    "t_f": "",
+    "weight_per_ft": 14.75
+  },
+  {
+    "label": "C7X12.25",
+    "t_f": "",
+    "weight_per_ft": 12.25
+  },
+  {
+    "label": "C7X9.8",
+    "t_f": "",
+    "weight_per_ft": 9.8
+  },
+  {
+    "label": "C6X13",
+    "t_f": "",
+    "weight_per_ft": 13.0
+  },
+  {
+    "label": "C6X10.5",
+    "t_f": "",
+    "weight_per_ft": 10.5
+  },
+  {
+    "label": "C6X8.2",
+    "t_f": "",
+    "weight_per_ft": 8.2
+  },
+  {
+    "label": "C5X9",
+    "t_f": "",
+    "weight_per_ft": 9.0
+  },
+  {
+    "label": "C5X6.7",
+    "t_f": "",
+    "weight_per_ft": 6.7
+  },
+  {
+    "label": "C4X7.25",
+    "t_f": "",
+    "weight_per_ft": 7.25
+  },
+  {
+    "label": "C4X5.4",
+    "t_f": "",
+    "weight_per_ft": 5.4
+  },
+  {
+    "label": "C4X4.5",
+    "t_f": "",
+    "weight_per_ft": 4.5
+  },
+  {
+    "label": "C3X6",
+    "t_f": "",
+    "weight_per_ft": 6.0
+  },
+  {
+    "label": "C3X5",
+    "t_f": "",
+    "weight_per_ft": 5.0
+  },
+  {
+    "label": "C3X4.1",
+    "t_f": "",
+    "weight_per_ft": 4.1
+  },
+  {
+    "label": "C3X3.5",
+    "t_f": "",
+    "weight_per_ft": 3.5
+  },
+  {
+    "label": "L8X8X1-1/8",
+    "t_f": "",
+    "weight_per_ft": 56.9
+  },
+  {
+    "label": "L8X8X1",
+    "t_f": "",
+    "weight_per_ft": 51.0
+  },
+  {
+    "label": "L8X8X7/8",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "L8X8X3/4",
+    "t_f": "",
+    "weight_per_ft": 38.9
+  },
+  {
+    "label": "L8X8X5/8",
+    "t_f": "",
+    "weight_per_ft": 32.7
+  },
+  {
+    "label": "L8X8X1/2",
+    "t_f": "",
+    "weight_per_ft": 26.4
+  },
+  {
+    "label": "L8X6X1",
+    "t_f": "",
+    "weight_per_ft": 44.2
+  },
+  {
+    "label": "L8X6X7/8",
+    "t_f": "",
+    "weight_per_ft": 39.1
+  },
+  {
+    "label": "L8X6X3/4",
+    "t_f": "",
+    "weight_per_ft": 33.8
+  },
+  {
+    "label": "L8X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 28.5
+  },
+  {
+    "label": "L8X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 23.0
+  },
+  {
+    "label": "L8X4X1",
+    "t_f": "",
+    "weight_per_ft": 37.4
+  },
+  {
+    "label": "L8X4X3/4",
+    "t_f": "",
+    "weight_per_ft": 28.7
+  },
+  {
+    "label": "L8X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 19.6
+  },
+  {
+    "label": "L6X6X1",
+    "t_f": "",
+    "weight_per_ft": 37.4
+  },
+  {
+    "label": "L6X6X7/8",
+    "t_f": "",
+    "weight_per_ft": 33.1
+  },
+  {
+    "label": "L6X6X3/4",
+    "t_f": "",
+    "weight_per_ft": 28.7
+  },
+  {
+    "label": "L6X6X5/8",
+    "t_f": "",
+    "weight_per_ft": 24.2
+  },
+  {
+    "label": "L6X6X1/2",
+    "t_f": "",
+    "weight_per_ft": 19.6
+  },
+  {
+    "label": "L6X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 14.9
+  },
+  {
+    "label": "L6X6X5/16",
+    "t_f": "",
+    "weight_per_ft": 12.4
+  },
+  {
+    "label": "L6X4X3/4",
+    "t_f": "",
+    "weight_per_ft": 23.6
+  },
+  {
+    "label": "L6X4X5/8",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "L6X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 16.2
+  },
+  {
+    "label": "L6X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 12.3
+  },
+  {
+    "label": "L6X4X5/16",
+    "t_f": "",
+    "weight_per_ft": 10.3
+  },
+  {
+    "label": "L6X3.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 15.3
+  },
+  {
+    "label": "L6X3.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 11.7
+  },
+  {
+    "label": "L5X5X7/8",
+    "t_f": "",
+    "weight_per_ft": 27.2
+  },
+  {
+    "label": "L5X5X3/4",
+    "t_f": "",
+    "weight_per_ft": 23.6
+  },
+  {
+    "label": "L5X5X1/2",
+    "t_f": "",
+    "weight_per_ft": 16.2
+  },
+  {
+    "label": "L5X5X3/8",
+    "t_f": "",
+    "weight_per_ft": 12.3
+  },
+  {
+    "label": "L5X5X5/16",
+    "t_f": "",
+    "weight_per_ft": 10.3
+  },
+  {
+    "label": "L5X3.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 13.6
+  },
+  {
+    "label": "L5X3.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 10.4
+  },
+  {
+    "label": "L5X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 12.8
+  },
+  {
+    "label": "L5X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 9.8
+  },
+  {
+    "label": "L5X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 6.6
+  },
+  {
+    "label": "L4X4X3/4",
+    "t_f": "",
+    "weight_per_ft": 18.5
+  },
+  {
+    "label": "L4X4X5/8",
+    "t_f": "",
+    "weight_per_ft": 15.7
+  },
+  {
+    "label": "L4X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 12.8
+  },
+  {
+    "label": "L4X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 9.8
+  },
+  {
+    "label": "L4X4X5/16",
+    "t_f": "",
+    "weight_per_ft": 8.2
+  },
+  {
+    "label": "L4X4X1/4",
+    "t_f": "",
+    "weight_per_ft": 6.6
+  },
+  {
+    "label": "L4X3.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 11.9
+  },
+  {
+    "label": "L4X3.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 9.1
+  },
+  {
+    "label": "L4X3.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 6.2
+  },
+  {
+    "label": "L4X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 11.1
+  },
+  {
+    "label": "L4X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 8.5
+  },
+  {
+    "label": "L4X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 5.8
+  },
+  {
+    "label": "L3.5X3.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 11.1
+  },
+  {
+    "label": "L3.5X3.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 8.5
+  },
+  {
+    "label": "L3.5X3.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 7.2
+  },
+  {
+    "label": "L3.5X3.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 5.8
+  },
+  {
+    "label": "L3.5X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 10.2
+  },
+  {
+    "label": "L3.5X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 7.9
+  },
+  {
+    "label": "L3.5X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 5.4
+  },
+  {
+    "label": "L3.5X2.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 9.4
+  },
+  {
+    "label": "L3.5X2.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 7.2
+  },
+  {
+    "label": "L3.5X2.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 4.9
+  },
+  {
+    "label": "L3X3X1/2",
+    "t_f": "",
+    "weight_per_ft": 9.4
+  },
+  {
+    "label": "L3X3X3/8",
+    "t_f": "",
+    "weight_per_ft": 7.2
+  },
+  {
+    "label": "L3X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 6.1
+  },
+  {
+    "label": "L3X3X1/4",
+    "t_f": "",
+    "weight_per_ft": 4.9
+  },
+  {
+    "label": "L3X3X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.71
+  },
+  {
+    "label": "L3X2.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 8.5
+  },
+  {
+    "label": "L3X2.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 6.6
+  },
+  {
+    "label": "L3X2.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 4.5
+  },
+  {
+    "label": "L3X2X1/2",
+    "t_f": "",
+    "weight_per_ft": 7.7
+  },
+  {
+    "label": "L3X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 5.9
+  },
+  {
+    "label": "L3X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 4.1
+  },
+  {
+    "label": "L3X2X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.07
+  },
+  {
+    "label": "L2.5X2.5X1/2",
+    "t_f": "",
+    "weight_per_ft": 7.7
+  },
+  {
+    "label": "L2.5X2.5X3/8",
+    "t_f": "",
+    "weight_per_ft": 5.9
+  },
+  {
+    "label": "L2.5X2.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 5.0
+  },
+  {
+    "label": "L2.5X2.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 4.1
+  },
+  {
+    "label": "L2.5X2.5X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.07
+  },
+  {
+    "label": "L2.5X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 5.3
+  },
+  {
+    "label": "L2.5X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 3.62
+  },
+  {
+    "label": "L2.5X2X3/16",
+    "t_f": "",
+    "weight_per_ft": 2.75
+  },
+  {
+    "label": "L2X2X3/8",
+    "t_f": "",
+    "weight_per_ft": 4.7
+  },
+  {
+    "label": "L2X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 3.92
+  },
+  {
+    "label": "L2X2X1/4",
+    "t_f": "",
+    "weight_per_ft": 3.19
+  },
+  {
+    "label": "L2X2X3/16",
+    "t_f": "",
+    "weight_per_ft": 2.44
+  },
+  {
+    "label": "L2X2X1/8",
+    "t_f": "",
+    "weight_per_ft": 1.65
+  },
+  {
+    "label": "S24X121",
+    "t_f": "",
+    "weight_per_ft": 121.0
+  },
+  {
+    "label": "S24X106",
+    "t_f": "",
+    "weight_per_ft": 106.0
+  },
+  {
+    "label": "S24X100",
+    "t_f": "",
+    "weight_per_ft": 100.0
+  },
+  {
+    "label": "S24X90",
+    "t_f": "",
+    "weight_per_ft": 90.0
+  },
+  {
+    "label": "S24X80",
+    "t_f": "",
+    "weight_per_ft": 80.0
+  },
+  {
+    "label": "S20X96",
+    "t_f": "",
+    "weight_per_ft": 96.0
+  },
+  {
+    "label": "S20X86",
+    "t_f": "",
+    "weight_per_ft": 86.0
+  },
+  {
+    "label": "S20X75",
+    "t_f": "",
+    "weight_per_ft": 75.0
+  },
+  {
+    "label": "S20X66",
+    "t_f": "",
+    "weight_per_ft": 66.0
+  },
+  {
+    "label": "S18X70",
+    "t_f": "",
+    "weight_per_ft": 70.0
+  },
+  {
+    "label": "S18X54.7",
+    "t_f": "",
+    "weight_per_ft": 54.7
+  },
+  {
+    "label": "S15X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "S15X42.9",
+    "t_f": "",
+    "weight_per_ft": 42.9
+  },
+  {
+    "label": "S12X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "S12X40.8",
+    "t_f": "",
+    "weight_per_ft": 40.8
+  },
+  {
+    "label": "S12X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "S12X31.8",
+    "t_f": "",
+    "weight_per_ft": 31.8
+  },
+  {
+    "label": "S10X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "S10X25.4",
+    "t_f": "",
+    "weight_per_ft": 25.4
+  },
+  {
+    "label": "S8X23",
+    "t_f": "",
+    "weight_per_ft": 23.0
+  },
+  {
+    "label": "S8X18.4",
+    "t_f": "",
+    "weight_per_ft": 18.4
+  },
+  {
+    "label": "S6X17.25",
+    "t_f": "",
+    "weight_per_ft": 17.25
+  },
+  {
+    "label": "S6X12.5",
+    "t_f": "",
+    "weight_per_ft": 12.5
+  },
+  {
+    "label": "S5X10",
+    "t_f": "",
+    "weight_per_ft": 10.0
+  },
+  {
+    "label": "S4X9.5",
+    "t_f": "",
+    "weight_per_ft": 9.5
+  },
+  {
+    "label": "S4X7.7",
+    "t_f": "",
+    "weight_per_ft": 7.7
+  },
+  {
+    "label": "S3X7.5",
+    "t_f": "",
+    "weight_per_ft": 7.5
+  },
+  {
+    "label": "S3X5.7",
+    "t_f": "",
+    "weight_per_ft": 5.7
+  },
+  {
+    "label": "WT18X150",
+    "t_f": "",
+    "weight_per_ft": 150.0
+  },
+  {
+    "label": "WT18X128",
+    "t_f": "",
+    "weight_per_ft": 128.0
+  },
+  {
+    "label": "WT18X116",
+    "t_f": "",
+    "weight_per_ft": 116.0
+  },
+  {
+    "label": "WT18X105",
+    "t_f": "",
+    "weight_per_ft": 105.0
+  },
+  {
+    "label": "WT18X97",
+    "t_f": "",
+    "weight_per_ft": 97.0
+  },
+  {
+    "label": "WT18X85",
+    "t_f": "",
+    "weight_per_ft": 85.0
+  },
+  {
+    "label": "WT18X80",
+    "t_f": "",
+    "weight_per_ft": 80.0
+  },
+  {
+    "label": "WT18X67.5",
+    "t_f": "",
+    "weight_per_ft": 67.5
+  },
+  {
+    "label": "WT15X195.5",
+    "t_f": "",
+    "weight_per_ft": 195.5
+  },
+  {
+    "label": "WT15X146",
+    "t_f": "",
+    "weight_per_ft": 146.0
+  },
+  {
+    "label": "WT15X117.5",
+    "t_f": "",
+    "weight_per_ft": 117.5
+  },
+  {
+    "label": "WT15X105.5",
+    "t_f": "",
+    "weight_per_ft": 105.5
+  },
+  {
+    "label": "WT15X95.5",
+    "t_f": "",
+    "weight_per_ft": 95.5
+  },
+  {
+    "label": "WT15X86.5",
+    "t_f": "",
+    "weight_per_ft": 86.5
+  },
+  {
+    "label": "WT15X74",
+    "t_f": "",
+    "weight_per_ft": 74.0
+  },
+  {
+    "label": "WT15X66",
+    "t_f": "",
+    "weight_per_ft": 66.0
+  },
+  {
+    "label": "WT15X58",
+    "t_f": "",
+    "weight_per_ft": 58.0
+  },
+  {
+    "label": "WT15X49.5",
+    "t_f": "",
+    "weight_per_ft": 49.5
+  },
+  {
+    "label": "WT15X45",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "WT12X185",
+    "t_f": "",
+    "weight_per_ft": 185.0
+  },
+  {
+    "label": "WT12X167.5",
+    "t_f": "",
+    "weight_per_ft": 167.5
+  },
+  {
+    "label": "WT12X153",
+    "t_f": "",
+    "weight_per_ft": 153.0
+  },
+  {
+    "label": "WT12X140",
+    "t_f": "",
+    "weight_per_ft": 140.0
+  },
+  {
+    "label": "WT12X125",
+    "t_f": "",
+    "weight_per_ft": 125.0
+  },
+  {
+    "label": "WT12X114.5",
+    "t_f": "",
+    "weight_per_ft": 114.5
+  },
+  {
+    "label": "WT12X103.5",
+    "t_f": "",
+    "weight_per_ft": 103.5
+  },
+  {
+    "label": "WT12X96",
+    "t_f": "",
+    "weight_per_ft": 96.0
+  },
+  {
+    "label": "WT12X88",
+    "t_f": "",
+    "weight_per_ft": 88.0
+  },
+  {
+    "label": "WT12X81",
+    "t_f": "",
+    "weight_per_ft": 81.0
+  },
+  {
+    "label": "WT12X73",
+    "t_f": "",
+    "weight_per_ft": 73.0
+  },
+  {
+    "label": "WT12X65.5",
+    "t_f": "",
+    "weight_per_ft": 65.5
+  },
+  {
+    "label": "WT12X58.5",
+    "t_f": "",
+    "weight_per_ft": 58.5
+  },
+  {
+    "label": "WT12X52",
+    "t_f": "",
+    "weight_per_ft": 52.0
+  },
+  {
+    "label": "WT12X47",
+    "t_f": "",
+    "weight_per_ft": 47.0
+  },
+  {
+    "label": "WT12X42",
+    "t_f": "",
+    "weight_per_ft": 42.0
+  },
+  {
+    "label": "WT12X38",
+    "t_f": "",
+    "weight_per_ft": 38.0
+  },
+  {
+    "label": "WT12X34",
+    "t_f": "",
+    "weight_per_ft": 34.0
+  },
+  {
+    "label": "WT12X31",
+    "t_f": "",
+    "weight_per_ft": 31.0
+  },
+  {
+    "label": "WT12X27.5",
+    "t_f": "",
+    "weight_per_ft": 27.5
+  },
+  {
+    "label": "Pipe12STD",
+    "t_f": "",
+    "weight_per_ft": 49.6
+  },
+  {
+    "label": "Pipe12X-STG",
+    "t_f": "",
+    "weight_per_ft": 65.4
+  },
+  {
+    "label": "Pipe10STD",
+    "t_f": "",
+    "weight_per_ft": 40.5
+  },
+  {
+    "label": "Pipe10X-STG",
+    "t_f": "",
+    "weight_per_ft": 54.7
+  },
+  {
+    "label": "Pipe8STD",
+    "t_f": "",
+    "weight_per_ft": 28.6
+  },
+  {
+    "label": "Pipe8X-STG",
+    "t_f": "",
+    "weight_per_ft": 43.4
+  },
+  {
+    "label": "Pipe6STD",
+    "t_f": "",
+    "weight_per_ft": 19.0
+  },
+  {
+    "label": "Pipe6X-STG",
+    "t_f": "",
+    "weight_per_ft": 28.6
+  },
+  {
+    "label": "Pipe5STD",
+    "t_f": "",
+    "weight_per_ft": 14.6
+  },
+  {
+    "label": "Pipe5X-STG",
+    "t_f": "",
+    "weight_per_ft": 20.8
+  },
+  {
+    "label": "Pipe4STD",
+    "t_f": "",
+    "weight_per_ft": 10.8
+  },
+  {
+    "label": "Pipe4X-STG",
+    "t_f": "",
+    "weight_per_ft": 15.0
+  },
+  {
+    "label": "Pipe3.5STD",
+    "t_f": "",
+    "weight_per_ft": 9.12
+  },
+  {
+    "label": "Pipe3.5X-STG",
+    "t_f": "",
+    "weight_per_ft": 12.5
+  },
+  {
+    "label": "Pipe3STD",
+    "t_f": "",
+    "weight_per_ft": 7.58
+  },
+  {
+    "label": "Pipe3X-STG",
+    "t_f": "",
+    "weight_per_ft": 10.3
+  },
+  {
+    "label": "Pipe2.5STD",
+    "t_f": "",
+    "weight_per_ft": 5.79
+  },
+  {
+    "label": "Pipe2.5X-STG",
+    "t_f": "",
+    "weight_per_ft": 7.66
+  },
+  {
+    "label": "Pipe2STD",
+    "t_f": "",
+    "weight_per_ft": 3.65
+  },
+  {
+    "label": "Pipe2X-STG",
+    "t_f": "",
+    "weight_per_ft": 5.02
+  },
+  {
+    "label": "Pipe1.5STD",
+    "t_f": "",
+    "weight_per_ft": 2.72
+  },
+  {
+    "label": "Pipe1.5X-STG",
+    "t_f": "",
+    "weight_per_ft": 3.63
+  },
+  {
+    "label": "Pipe1-1/4STD",
+    "t_f": "",
+    "weight_per_ft": 2.27
+  },
+  {
+    "label": "Pipe1-1/4X-STG",
+    "t_f": "",
+    "weight_per_ft": 3.0
+  },
+  {
+    "label": "Pipe1STD",
+    "t_f": "",
+    "weight_per_ft": 1.68
+  },
+  {
+    "label": "Pipe1X-STG",
+    "t_f": "",
+    "weight_per_ft": 2.17
+  },
+  {
+    "label": "Pipe3/4STD",
+    "t_f": "",
+    "weight_per_ft": 1.13
+  },
+  {
+    "label": "Pipe1/2STD",
+    "t_f": "",
+    "weight_per_ft": 0.85
+  },
+  {
+    "label": "W21X48",
+    "t_f": "",
+    "weight_per_ft": 48.0
+  },
+  {
+    "label": "W21X44",
+    "t_f": "",
+    "weight_per_ft": 44.0
+  },
+  {
+    "label": "W18X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "W18X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "W18X46",
+    "t_f": "",
+    "weight_per_ft": 46.0
+  },
+  {
+    "label": "W18X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "W18X55",
+    "t_f": "",
+    "weight_per_ft": 55.0
+  },
+  {
+    "label": "W18X60",
+    "t_f": "",
+    "weight_per_ft": 60.0
+  },
+  {
+    "label": "W18X65",
+    "t_f": "",
+    "weight_per_ft": 65.0
+  },
+  {
+    "label": "W18X71",
+    "t_f": "",
+    "weight_per_ft": 71.0
+  },
+  {
+    "label": "W18X76",
+    "t_f": "",
+    "weight_per_ft": 76.0
+  },
+  {
+    "label": "W16X26",
+    "t_f": "",
+    "weight_per_ft": 26.0
+  },
+  {
+    "label": "W16X31",
+    "t_f": "",
+    "weight_per_ft": 31.0
+  },
+  {
+    "label": "W16X36",
+    "t_f": "",
+    "weight_per_ft": 36.0
+  },
+  {
+    "label": "W16X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "W16X45",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "W16X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "W16X57",
+    "t_f": "",
+    "weight_per_ft": 57.0
+  },
+  {
+    "label": "W16X67",
+    "t_f": "",
+    "weight_per_ft": 67.0
+  },
+  {
+    "label": "W16X77",
+    "t_f": "",
+    "weight_per_ft": 77.0
+  },
+  {
+    "label": "W14X22",
+    "t_f": "",
+    "weight_per_ft": 22.0
+  },
+  {
+    "label": "W14X26",
+    "t_f": "",
+    "weight_per_ft": 26.0
+  },
+  {
+    "label": "W14X30",
+    "t_f": "",
+    "weight_per_ft": 30.0
+  },
+  {
+    "label": "W14X34",
+    "t_f": "",
+    "weight_per_ft": 34.0
+  },
+  {
+    "label": "W14X38",
+    "t_f": "",
+    "weight_per_ft": 38.0
+  },
+  {
+    "label": "W14X43",
+    "t_f": "",
+    "weight_per_ft": 43.0
+  },
+  {
+    "label": "W14X48",
+    "t_f": "",
+    "weight_per_ft": 48.0
+  },
+  {
+    "label": "W14X53",
+    "t_f": "",
+    "weight_per_ft": 53.0
+  },
+  {
+    "label": "W14X61",
+    "t_f": "",
+    "weight_per_ft": 61.0
+  },
+  {
+    "label": "W14X68",
+    "t_f": "",
+    "weight_per_ft": 68.0
+  },
+  {
+    "label": "W14X74",
+    "t_f": "",
+    "weight_per_ft": 74.0
+  },
+  {
+    "label": "W14X82",
+    "t_f": "",
+    "weight_per_ft": 82.0
+  },
+  {
+    "label": "W14X90",
+    "t_f": "",
+    "weight_per_ft": 90.0
+  },
+  {
+    "label": "W14X99",
+    "t_f": "",
+    "weight_per_ft": 99.0
+  },
+  {
+    "label": "W14X109",
+    "t_f": "",
+    "weight_per_ft": 109.0
+  },
+  {
+    "label": "W14X120",
+    "t_f": "",
+    "weight_per_ft": 120.0
+  },
+  {
+    "label": "W14X132",
+    "t_f": "",
+    "weight_per_ft": 132.0
+  },
+  {
+    "label": "W12X14",
+    "t_f": "",
+    "weight_per_ft": 14.0
+  },
+  {
+    "label": "W12X16",
+    "t_f": "",
+    "weight_per_ft": 16.0
+  },
+  {
+    "label": "W12X19",
+    "t_f": "",
+    "weight_per_ft": 19.0
+  },
+  {
+    "label": "W12X22",
+    "t_f": "",
+    "weight_per_ft": 22.0
+  },
+  {
+    "label": "W12X26",
+    "t_f": "",
+    "weight_per_ft": 26.0
+  },
+  {
+    "label": "W12X30",
+    "t_f": "",
+    "weight_per_ft": 30.0
+  },
+  {
+    "label": "W12X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "W12X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "W12X45",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "W12X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "W12X53",
+    "t_f": "",
+    "weight_per_ft": 53.0
+  },
+  {
+    "label": "W12X58",
+    "t_f": "",
+    "weight_per_ft": 58.0
+  },
+  {
+    "label": "W12X65",
+    "t_f": "",
+    "weight_per_ft": 65.0
+  },
+  {
+    "label": "W12X72",
+    "t_f": "",
+    "weight_per_ft": 72.0
+  },
+  {
+    "label": "W12X79",
+    "t_f": "",
+    "weight_per_ft": 79.0
+  },
+  {
+    "label": "W12X87",
+    "t_f": "",
+    "weight_per_ft": 87.0
+  },
+  {
+    "label": "W12X96",
+    "t_f": "",
+    "weight_per_ft": 96.0
+  },
+  {
+    "label": "W12X106",
+    "t_f": "",
+    "weight_per_ft": 106.0
+  },
+  {
+    "label": "W10X12",
+    "t_f": "",
+    "weight_per_ft": 12.0
+  },
+  {
+    "label": "W10X15",
+    "t_f": "",
+    "weight_per_ft": 15.0
+  },
+  {
+    "label": "W10X17",
+    "t_f": "",
+    "weight_per_ft": 17.0
+  },
+  {
+    "label": "W10X19",
+    "t_f": "",
+    "weight_per_ft": 19.0
+  },
+  {
+    "label": "W10X22",
+    "t_f": "",
+    "weight_per_ft": 22.0
+  },
+  {
+    "label": "W10X26",
+    "t_f": "",
+    "weight_per_ft": 26.0
+  },
+  {
+    "label": "W10X30",
+    "t_f": "",
+    "weight_per_ft": 30.0
+  },
+  {
+    "label": "W10X33",
+    "t_f": "",
+    "weight_per_ft": 33.0
+  },
+  {
+    "label": "W10X39",
+    "t_f": "",
+    "weight_per_ft": 39.0
+  },
+  {
+    "label": "W10X45",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "W10X49",
+    "t_f": "",
+    "weight_per_ft": 49.0
+  },
+  {
+    "label": "W10X54",
+    "t_f": "",
+    "weight_per_ft": 54.0
+  },
+  {
+    "label": "W10X60",
+    "t_f": "",
+    "weight_per_ft": 60.0
+  },
+  {
+    "label": "W10X68",
+    "t_f": "",
+    "weight_per_ft": 68.0
+  },
+  {
+    "label": "W10X77",
+    "t_f": "",
+    "weight_per_ft": 77.0
+  },
+  {
+    "label": "W10X88",
+    "t_f": "",
+    "weight_per_ft": 88.0
+  },
+  {
+    "label": "W10X100",
+    "t_f": "",
+    "weight_per_ft": 100.0
+  },
+  {
+    "label": "W10X112",
+    "t_f": "",
+    "weight_per_ft": 112.0
+  },
+  {
+    "label": "W8X10",
+    "t_f": "",
+    "weight_per_ft": 10.0
+  },
+  {
+    "label": "W8X13",
+    "t_f": "",
+    "weight_per_ft": 13.0
+  },
+  {
+    "label": "W8X15",
+    "t_f": "",
+    "weight_per_ft": 15.0
+  },
+  {
+    "label": "W8X18",
+    "t_f": "",
+    "weight_per_ft": 18.0
+  },
+  {
+    "label": "W8X21",
+    "t_f": "",
+    "weight_per_ft": 21.0
+  },
+  {
+    "label": "W8X24",
+    "t_f": "",
+    "weight_per_ft": 24.0
+  },
+  {
+    "label": "W8X28",
+    "t_f": "",
+    "weight_per_ft": 28.0
+  },
+  {
+    "label": "W8X31",
+    "t_f": "",
+    "weight_per_ft": 31.0
+  },
+  {
+    "label": "W8X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "W8X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "W8X48",
+    "t_f": "",
+    "weight_per_ft": 48.0
+  },
+  {
+    "label": "W8X58",
+    "t_f": "",
+    "weight_per_ft": 58.0
+  },
+  {
+    "label": "W8X67",
+    "t_f": "",
+    "weight_per_ft": 67.0
+  },
+  {
+    "label": "W6X8.5",
+    "t_f": "",
+    "weight_per_ft": 8.5
+  },
+  {
+    "label": "W6X9",
+    "t_f": "",
+    "weight_per_ft": 9.0
+  },
+  {
+    "label": "W6X12",
+    "t_f": "",
+    "weight_per_ft": 12.0
+  },
+  {
+    "label": "W6X15",
+    "t_f": "",
+    "weight_per_ft": 15.0
+  },
+  {
+    "label": "W6X16",
+    "t_f": "",
+    "weight_per_ft": 16.0
+  },
+  {
+    "label": "W6X20",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "W6X25",
+    "t_f": "",
+    "weight_per_ft": 25.0
+  },
+  {
+    "label": "W5X16",
+    "t_f": "",
+    "weight_per_ft": 16.0
+  },
+  {
+    "label": "W5X19",
+    "t_f": "",
+    "weight_per_ft": 19.0
+  },
+  {
+    "label": "W4X13",
+    "t_f": "",
+    "weight_per_ft": 13.0
+  },
+  {
+    "label": "MC18X42.7",
+    "t_f": "",
+    "weight_per_ft": 42.7
+  },
+  {
+    "label": "MC13X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "MC13X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "MC13X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "MC13X31.8",
+    "t_f": "",
+    "weight_per_ft": 31.8
+  },
+  {
+    "label": "MC12X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "MC12X45",
+    "t_f": "",
+    "weight_per_ft": 45.0
+  },
+  {
+    "label": "MC12X40",
+    "t_f": "",
+    "weight_per_ft": 40.0
+  },
+  {
+    "label": "MC12X35",
+    "t_f": "",
+    "weight_per_ft": 35.0
+  },
+  {
+    "label": "MC12X31",
+    "t_f": "",
+    "weight_per_ft": 31.0
+  },
+  {
+    "label": "MC10X41.1",
+    "t_f": "",
+    "weight_per_ft": 41.1
+  },
+  {
+    "label": "MC10X33.6",
+    "t_f": "",
+    "weight_per_ft": 33.6
+  },
+  {
+    "label": "MC10X28.5",
+    "t_f": "",
+    "weight_per_ft": 28.5
+  },
+  {
+    "label": "MC10X25",
+    "t_f": "",
+    "weight_per_ft": 25.0
+  },
+  {
+    "label": "MC10X22",
+    "t_f": "",
+    "weight_per_ft": 22.0
+  },
+  {
+    "label": "MC8X22.8",
+    "t_f": "",
+    "weight_per_ft": 22.8
+  },
+  {
+    "label": "MC8X21.4",
+    "t_f": "",
+    "weight_per_ft": 21.4
+  },
+  {
+    "label": "MC8X20",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "MC8X18.7",
+    "t_f": "",
+    "weight_per_ft": 18.7
+  },
+  {
+    "label": "MC6X18",
+    "t_f": "",
+    "weight_per_ft": 18.0
+  },
+  {
+    "label": "MC6X15.3",
+    "t_f": "",
+    "weight_per_ft": 15.3
+  },
+  {
+    "label": "MC6X12",
+    "t_f": "",
+    "weight_per_ft": 12.0
+  },
+  {
+    "label": "L8X8X9/16",
+    "t_f": "",
+    "weight_per_ft": 29.6
+  },
+  {
+    "label": "L8X6X9/16",
+    "t_f": "",
+    "weight_per_ft": 25.7
+  },
+  {
+    "label": "L8X6X7/16",
+    "t_f": "",
+    "weight_per_ft": 20.2
+  },
+  {
+    "label": "L8X6X3/8",
+    "t_f": "",
+    "weight_per_ft": 17.4
+  },
+  {
+    "label": "L8X4X7/8",
+    "t_f": "",
+    "weight_per_ft": 33.1
+  },
+  {
+    "label": "L8X4X5/8",
+    "t_f": "",
+    "weight_per_ft": 24.2
+  },
+  {
+    "label": "L8X4X9/16",
+    "t_f": "",
+    "weight_per_ft": 21.8
+  },
+  {
+    "label": "L8X4X7/16",
+    "t_f": "",
+    "weight_per_ft": 17.2
+  },
+  {
+    "label": "L8X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 14.8
+  },
+  {
+    "label": "L7X4X3/4",
+    "t_f": "",
+    "weight_per_ft": 26.2
+  },
+  {
+    "label": "L7X4X5/8",
+    "t_f": "",
+    "weight_per_ft": 22.1
+  },
+  {
+    "label": "L7X4X1/2",
+    "t_f": "",
+    "weight_per_ft": 17.9
+  },
+  {
+    "label": "L7X4X7/16",
+    "t_f": "",
+    "weight_per_ft": 15.7
+  },
+  {
+    "label": "L7X4X3/8",
+    "t_f": "",
+    "weight_per_ft": 13.6
+  },
+  {
+    "label": "L6X6X9/16",
+    "t_f": "",
+    "weight_per_ft": 21.9
+  },
+  {
+    "label": "L6X6X7/16",
+    "t_f": "",
+    "weight_per_ft": 17.2
+  },
+  {
+    "label": "L6X4X7/8",
+    "t_f": "",
+    "weight_per_ft": 27.2
+  },
+  {
+    "label": "L6X4X9/16",
+    "t_f": "",
+    "weight_per_ft": 18.1
+  },
+  {
+    "label": "L6X4X7/16",
+    "t_f": "",
+    "weight_per_ft": 14.3
+  },
+  {
+    "label": "L6X3.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 9.8
+  },
+  {
+    "label": "L5X5X5/8",
+    "t_f": "",
+    "weight_per_ft": 20.0
+  },
+  {
+    "label": "L5X5X7/16",
+    "t_f": "",
+    "weight_per_ft": 14.3
+  },
+  {
+    "label": "L5X3.5X3/4",
+    "t_f": "",
+    "weight_per_ft": 19.8
+  },
+  {
+    "label": "L5X3.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 8.7
+  },
+  {
+    "label": "L5X3.5X1/4",
+    "t_f": "",
+    "weight_per_ft": 7.0
+  },
+  {
+    "label": "L5X3X7/16",
+    "t_f": "",
+    "weight_per_ft": 11.3
+  },
+  {
+    "label": "L5X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 8.2
+  },
+  {
+    "label": "L4X4X7/16",
+    "t_f": "",
+    "weight_per_ft": 11.3
+  },
+  {
+    "label": "L4X4X3/16",
+    "t_f": "",
+    "weight_per_ft": 5.0
+  },
+  {
+    "label": "L4X3.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 7.7
+  },
+  {
+    "label": "L4X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 7.2
+  },
+  {
+    "label": "L3.5X3.5X7/16",
+    "t_f": "",
+    "weight_per_ft": 9.8
+  },
+  {
+    "label": "L3.5X3.5X3/16",
+    "t_f": "",
+    "weight_per_ft": 4.4
+  },
+  {
+    "label": "L3.5X3X7/16",
+    "t_f": "",
+    "weight_per_ft": 9.1
+  },
+  {
+    "label": "L3.5X3X5/16",
+    "t_f": "",
+    "weight_per_ft": 6.6
+  },
+  {
+    "label": "L3.5X2.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 6.1
+  },
+  {
+    "label": "L3.5X2.5X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.71
+  },
+  {
+    "label": "L3X3X7/16",
+    "t_f": "",
+    "weight_per_ft": 8.3
+  },
+  {
+    "label": "L3X2.5X7/16",
+    "t_f": "",
+    "weight_per_ft": 7.6
+  },
+  {
+    "label": "L3X2.5X5/16",
+    "t_f": "",
+    "weight_per_ft": 5.6
+  },
+  {
+    "label": "L3X2.5X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.39
+  },
+  {
+    "label": "L3X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 5.0
+  },
+  {
+    "label": "L2.5X2X5/16",
+    "t_f": "",
+    "weight_per_ft": 4.5
+  },
+  {
+    "label": "W21X50",
+    "t_f": "",
+    "weight_per_ft": 50.0
+  },
+  {
+    "label": "W21X68",
+    "t_f": "",
+    "weight_per_ft": 68.0
+  },
+  {
+    "label": "C12X14.3",
+    "t_f": "",
+    "weight_per_ft": 14.3
+  },
+  {
+    "label": "MC12X10.6",
+    "t_f": "",
+    "weight_per_ft": 10.6
+  },
+  {
+    "label": "HSS1.5X1.5X3/16",
+    "t_f": "",
+    "weight_per_ft": 3.04
+  }
+]
