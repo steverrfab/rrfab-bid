@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/lookup', (req, res) => {
   const section = String(req.query.section || '').toUpperCase().replace(/\s+/g, '');
   if (!section) return res.status(400).json({ error: 'section required' });
-  const row = db.prepare('SELECT label, t_f, weight_per_ft FROM aisc_sections WHERE label = ?').get(section);
+  const row = db.prepare('SELECT label, t_f, weight_per_ft FROM aisc_sections WHERE label = ? COLLATE NOCASE').get(section);
   if (!row) return res.json({ found: false, section });
   res.json({ found: true, ...row });
 });
@@ -19,7 +19,7 @@ router.get('/', (req, res) => {
     const rows = db.prepare('SELECT label, t_f, weight_per_ft FROM aisc_sections LIMIT 20').all();
     return res.json({ rows });
   }
-  const rows = db.prepare('SELECT label, t_f, weight_per_ft FROM aisc_sections WHERE label LIKE ? ORDER BY length(label), label LIMIT 20').all(q + '%');
+  const rows = db.prepare('SELECT label, t_f, weight_per_ft FROM aisc_sections WHERE label LIKE ? COLLATE NOCASE ORDER BY length(label), label LIMIT 50').all(q + '%');
   res.json({ rows });
 });
 

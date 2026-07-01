@@ -13,7 +13,7 @@ const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-const aiscStmt = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?');
+const aiscStmt = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ? COLLATE NOCASE');
 function aiscLookup(label) {
   if (!label) return 0;
   const row = aiscStmt.get(String(label).toUpperCase().replace(/\s+/g, ''));
@@ -716,8 +716,8 @@ function copyEstimateChildren(srcId, newId) {
     SELECT ?, position, thickness, cost_factor, width_in, length_in, qty, notes FROM takeoff_plates WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
-    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
-    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes FROM takeoff_misc WHERE estimate_id = ?
+    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes, length_ft, price_per_ft)
+    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes, length_ft, price_per_ft FROM takeoff_misc WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
     INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
@@ -989,8 +989,8 @@ router.put('/:id/takeoff/misc', (req, res) => {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM takeoff_misc WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
-      INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes, length_ft, price_per_ft)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
@@ -1001,7 +1001,9 @@ router.put('/:id/takeoff/misc', (req, res) => {
         +r.qty || 0,
         +r.weight_each_lb || 0,
         +r.cost_per_cwt || 0,
-        r.notes || ''
+        r.notes || '',
+        +r.length_ft || 0,
+        +r.price_per_ft || 0
       );
     }
     db.prepare("UPDATE estimates SET updated_at = datetime('now') WHERE id = ?").run(id);

@@ -32,7 +32,7 @@ router.get('/', (req, res) => {
     // Enrich shapes with AISC weight per foot for scope page
     const aiscLookup = (label) => {
       if (!label) return 0;
-      const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ?')
+      const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ? COLLATE NOCASE')
         .get(String(label).toUpperCase().replace(/\s+/g, ''));
       return row ? row.weight_per_ft : 0;
     };
