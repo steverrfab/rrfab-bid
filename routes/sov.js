@@ -103,12 +103,12 @@ function autoGenerateItems(bundle) {
 
   const items = [
     { item_no: '1', _key: 'core:1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', _key: 'core:2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + exFab) * m },
+    { item_no: '2', _key: 'core:2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + c.processingLabor + exFab) * m },
     { item_no: '3', _key: 'core:3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
     { item_no: '4', _key: 'core:4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
     { item_no: '5', _key: 'core:5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1) + exErect) * m },
-    { item_no: '6', _key: 'core:6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
-    { item_no: '7', _key: 'core:7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
+    { item_no: '6', _key: 'core:6', description: 'Galvanizing',                           scheduled_value: c.galv * m }
+    // Processing Labor (was item 7 / core:7) is bundled into item 2 above.
   ];
 
   // Item 0: project scope (and drawing numbers), so the SOV reflects the scope.
@@ -122,8 +122,8 @@ function autoGenerateItems(bundle) {
     });
   }
 
-  // Add sub items if non-zero
-  let next = 8;
+  // Add sub items if non-zero (item 7 freed up after Processing Labor merged into 2)
+  let next = 7;
   if ((+e.sub_joist_deck || 0) > 0) {
     items.push({ item_no: String(next++), _key: 'sub:joist', description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   }

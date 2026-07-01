@@ -62,15 +62,15 @@ function buildSovItems(bundle) {
   // Material and finishes
   items.push(
     { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + exFab) * m },
+    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + c.processingLabor + exFab) * m },
     { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
     { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
     { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1) + exErect) * m },
-    { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m },
-    { item_no: '7', description: 'Processing Labor',                      scheduled_value: c.processingLabor * m }
+    { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m }
+    // Processing Labor (was item 7) is bundled into item 2 above.
   );
 
-  let next = 8;
+  let next = 7;
   if ((+e.sub_joist_deck || 0) > 0)
     items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   if ((+e.sub_erection || 0) > 0)
