@@ -200,6 +200,34 @@ router.param('id', (req, res, next, id) => {
   estimateOwnershipCheck(req, res, next);
 });
 
+// Pre-tax sell price for a loaded estimate bundle. Mirrors the /summary revenue
+// rule and the won-jobs feed: price_to_win when set, otherwise the computed
+// total (process-only uses subtotal + O&P, before sales tax).
+function sellPretax(bundle) {
+  const e = bundle.estimate;
+  const c = bundle.computed || {};
+  const pc = bundle.processComputed || {};
+  const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
+  if (e.job_type === 'process_only') {
+    const poPreTax = (+pc.subTotal || 0) + (+pc.opAmt || 0);
+    return ptw != null ? ptw : poPreTax;
+  }
+  return ptw != null ? ptw : (+c.totalBid || 0);
+}
+
+// Attach contract_amount (pre-tax sell) to each list row.
+function attachAmounts(rows) {
+  for (const row of rows) {
+    try {
+      const bundle = loadFullEstimate(row.id);
+      row.contract_amount = bundle ? sellPretax(bundle) : 0;
+    } catch {
+      row.contract_amount = 0;
+    }
+  }
+  return rows;
+}
+
 // ---- LIST ----
 router.get('/', (req, res) => {
   if (isAdminish(req.user.role)) {
@@ -212,7 +240,7 @@ router.get('/', (req, res) => {
       WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
       ORDER BY e.updated_at DESC
     `).all();
-    return res.json({ rows });
+    return res.json({ rows: attachAmounts(rows) });
   }
   // Estimators: only see their own + legacy estimates with no owner
   const rows = db.prepare(`
@@ -224,7 +252,7 @@ router.get('/', (req, res) => {
     WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
-  res.json({ rows });
+  res.json({ rows: attachAmounts(rows) });
 });
 
 // ---- TRASH: list soft-deleted bids (restorable) ----
