@@ -1269,10 +1269,13 @@ router.get('/feed/won-jobs', (req, res) => {
     const contract = isPO
       ? (ptw != null ? ptw : ((+pc.subTotal || 0) + (+pc.opAmt || 0)))
       : (ptw != null ? ptw : (+c.totalBid || 0));
+    // Direct cost so the tracker can show real margin (mirrors the bid dashboard).
+    const cost = isPO ? (+pc.yourCost || 0) : (+c.directCost || 0);
     jobs.push({
       job_number: e.job_number, estimate_id: e.id, bid_number: e.bid_number || '',
       project_name: e.project_name || '', client_gc: e.client_gc || '', scope: e.scope || '',
-      contract_amount: Math.round(contract * 100) / 100, won_at: e.won_at || null,
+      contract_amount: Math.round(contract * 100) / 100,
+      cost: Math.round(cost * 100) / 100, won_at: e.won_at || null,
       job_type: e.job_type || 'full'
     });
   }
