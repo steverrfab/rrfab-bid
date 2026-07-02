@@ -9,6 +9,7 @@ const { parseTemplate } = require('../lib/parser');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
+const { buildWonJobPayload, pushWonJobToTracker } = require('../lib/tracker_push');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -611,6 +612,9 @@ router.put('/:id', async (req, res) => {
     // Notify recipients (fire-and-forget, don't block response)
     const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
     sendWonNotification(bundle, recipients).catch(err => console.error('[sov] email error:', err));
+    // Push this won job to the Project Tracker in real time. Fire-and-forget, and
+    // reloaded so it carries the freshly assigned job number and won_at stamp.
+    try { pushWonJobToTracker(loadFullEstimate(id)); } catch (e) { console.error('[tracker push] error:', e.message); }
   }
 
   res.json(bundle);
@@ -1291,21 +1295,7 @@ router.get('/feed/won-jobs', (req, res) => {
   for (const { id } of idRows) {
     const bundle = loadFullEstimate(id);
     if (!bundle) continue;
-    const e = bundle.estimate, c = bundle.computed || {}, pc = bundle.processComputed || {};
-    const isPO = e.job_type === 'process_only';
-    const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
-    const contract = isPO
-      ? (ptw != null ? ptw : ((+pc.subTotal || 0) + (+pc.opAmt || 0)))
-      : (ptw != null ? ptw : (+c.totalBid || 0));
-    // Direct cost so the tracker can show real margin (mirrors the bid dashboard).
-    const cost = isPO ? (+pc.yourCost || 0) : (+c.directCost || 0);
-    jobs.push({
-      job_number: e.job_number, estimate_id: e.id, bid_number: e.bid_number || '',
-      project_name: e.project_name || '', client_gc: e.client_gc || '', scope: e.scope || '',
-      contract_amount: Math.round(contract * 100) / 100,
-      cost: Math.round(cost * 100) / 100, won_at: e.won_at || null,
-      job_type: e.job_type || 'full'
-    });
+    jobs.push(buildWonJobPayload(bundle));
   }
   res.json({ jobs });
 });
