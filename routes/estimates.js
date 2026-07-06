@@ -536,19 +536,19 @@ router.put('/:id', async (req, res) => {
   // A bid cannot move into Won without a valid, unique job number. Enforced here
   // (not just in the UI) so it holds no matter which screen triggers the win:
   // the list status dropdown, the Project tab dropdown, or the editor button.
-  // Format depends on job_type: full = 4 digits (0000), process-only = P-000.
+  // Format depends on job_type: full = NNNN-NNNN (1234-5678), process-only = P-000.
   let gatedJobNumber = null;
   if (((req.body || {}).status === 'Won') && prev.status !== 'Won') {
     const grow = db.prepare('SELECT job_type, job_number, bid_number FROM estimates WHERE id = ?').get(id);
     const jobType = (grow && grow.job_type) || 'full';
     const hasIncoming = Object.prototype.hasOwnProperty.call(req.body || {}, 'job_number');
     const candidate = String((hasIncoming ? req.body.job_number : (grow && grow.job_number)) || '').trim();
-    const pattern = jobType === 'process_only' ? /^P-\d{3}$/ : /^\d{4}$/;
+    const pattern = jobType === 'process_only' ? /^P-\d{3}$/ : /^\d{4}-\d{4}$/;
     if (!pattern.test(candidate)) {
       return res.status(400).json({
         error: jobType === 'process_only'
           ? 'A job number (P- followed by 3 digits) is required to mark this bid Won.'
-          : 'A job number (4 digits) is required to mark this bid Won.'
+          : 'A job number (4 digits, a dash, then 4 digits, e.g. 1234-5678) is required to mark this bid Won.'
       });
     }
     // Uniqueness is checked against OTHER job families. Revisions of the same job
