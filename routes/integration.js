@@ -7,6 +7,7 @@
 const express = require('express');
 const db = require('../db');
 const { loadFullEstimate } = require('./estimates');
+const { buildProposalView } = require('../lib/proposal_lines');
 
 const router = express.Router();
 
@@ -43,7 +44,8 @@ router.get('/won-jobs', (req, res) => {
       } else {
         const c = bundle.computed || {};
         sellPrice = ptw != null ? ptw : (+c.totalBid || 0);
-        cost = (+c.directCost || 0);
+        // Real burdened cost, matching the dashboard and proposal (was bid-rate c.directCost).
+        cost = (+buildProposalView(bundle).base.directCost || 0);
       }
       jobs.push({
         jobNumber: e.job_number || '',

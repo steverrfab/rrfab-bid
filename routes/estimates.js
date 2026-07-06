@@ -305,8 +305,13 @@ router.get('/summary', (req, res) => {
       revenue = ptw != null ? ptw : poPreTax;
       profit  = revenue - (+pc.yourCost || 0);
     } else {
+      // Profit uses REAL burdened cost (labor at loaded wage rates), matching the
+      // proposal builder and the Margin Analysis / Client Proposal tabs, not the
+      // old bid-rate estimate cost (c.directCost). Revenue behavior is unchanged
+      // (price-to-win when set, else the computed bid; hide/exclude still ignored).
+      const view = buildProposalView(bundle);
       revenue = ptw != null ? ptw : (+c.totalBid || 0);
-      profit  = revenue - (+c.directCost || 0);
+      profit  = revenue - (+view.base.directCost || 0);
     }
     rows.push({
       id: e.id,
@@ -1282,23 +1287,4 @@ router.post('/:id/process-import/kiss', upload.single('file'), (req, res) => {
 // ---- INTEGRATION FEED: Won jobs for the Project Tracker (read-only) ----
 // Protected by a shared secret (TRACKER_KEY), not a user login. One row per
 // Won base bid that has a job number. contract_amount mirrors dashboard
-// revenue (the sell price the job was won at, before sales tax).
-router.get('/feed/won-jobs', (req, res) => {
-  const expected = process.env.TRACKER_KEY || '';
-  const provided = req.get('X-Integration-Key') || '';
-  if (!expected || provided !== expected) {
-    return res.status(401).json({ error: 'invalid integration key' });
-  }
-  const idRows = db.prepare(
-    "SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL) AND job_number IS NOT NULL AND job_number != ''"
-  ).all();
-  const jobs = [];
-  for (const { id } of idRows) {
-    const bundle = loadFullEstimate(id);
-    if (!bundle) continue;
-    jobs.push(buildWonJobPayload(bundle));
-  }
-  res.json({ jobs });
-});
-
-module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
+// revenue (the sell price the job was won at, before 
