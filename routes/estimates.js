@@ -13,10 +13,11 @@ const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-const aiscStmt = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ? COLLATE NOCASE');
+const { normalizeLabel } = require('../lib/sections');
+const aiscStmt = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label_norm = ?');
 function aiscLookup(label) {
   if (!label) return 0;
-  const row = aiscStmt.get(String(label).toUpperCase().replace(/\s+/g, ''));
+  const row = aiscStmt.get(normalizeLabel(label));
   return row ? row.weight_per_ft : 0;
 }
 

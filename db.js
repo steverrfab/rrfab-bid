@@ -2,6 +2,7 @@
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
+const { normalizeLabel } = require('./lib/sections');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -45,19 +46,49 @@ function runMigrations() {
 }
 
 function seedAisc() {
-  const count = db.prepare('SELECT COUNT(*) as n FROM aisc_sections').get().n;
-  if (count > 0) {
-    console.log('[db] aisc already seeded (' + count + ' rows)');
-    return;
-  }
+  // Idempotent top-up. seed/aisc.json is the source of truth for WHICH sections
+  // exist; INSERT OR IGNORE adds any that are missing and never overwrites an
+  // existing row (so weights already in the table are left alone and saved bids
+  // are unaffected). Running every startup keeps a fresh install complete even
+  // though earlier migrations may have inserted a few rows first, and lets a
+  // seed expansion reach an already-populated database. Weight CORRECTIONS to
+  // existing rows are done separately via UPDATE migrations, since INSERT OR
+  // IGNORE cannot change an existing weight.
   const seedPath = path.join(__dirname, 'seed', 'aisc.json');
   const data = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+  const before = db.prepare('SELECT COUNT(*) as n FROM aisc_sections').get().n;
   const insert = db.prepare('INSERT OR IGNORE INTO aisc_sections (label, t_f, weight_per_ft) VALUES (?, ?, ?)');
   const tx = db.transaction((rows) => {
     for (const r of rows) insert.run(r.label, r.t_f || '', r.weight_per_ft);
   });
   tx(data);
-  console.log('[db] aisc seeded: ' + data.length + ' rows');
+  const after = db.prepare('SELECT COUNT(*) as n FROM aisc_sections').get().n;
+  console.log('[db] aisc seed top-up: ' + (after - before) + ' added, ' + after + ' total');
+}
+
+// Recompute the normalized-label column for every section on each startup, so
+// label_norm always reflects the current normalizeLabel() rules and any labels
+// added by seed or migrations. Cheap (a few hundred rows) and idempotent. Only
+// writes rows whose normalized value actually changed. Guarded so it is a no-op
+// if migration 044 has not added the column yet.
+function normalizeSections() {
+  try {
+    const cols = db.prepare('PRAGMA table_info(aisc_sections)').all();
+    if (!cols.some(c => c.name === 'label_norm')) return;
+    const rows = db.prepare('SELECT label, label_norm FROM aisc_sections').all();
+    const upd = db.prepare('UPDATE aisc_sections SET label_norm = ? WHERE label = ?');
+    let changed = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const norm = normalizeLabel(r.label);
+        if (r.label_norm !== norm) { upd.run(norm, r.label); changed++; }
+      }
+    });
+    tx();
+    if (changed) console.log('[db] aisc label_norm updated: ' + changed + ' rows');
+  } catch (err) {
+    console.error('[db] label_norm population skipped:', err.message);
+  }
 }
 
 // Runs once on first deploy when the users table is empty.
@@ -173,6 +204,7 @@ function reconcileWonLostFamilies() {
 
 runMigrations();
 seedAisc();
+normalizeSections();
 seedFirstAdmin();
 seedStandardExclusions();
 reconcileWonLostFamilies();

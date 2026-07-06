@@ -30,10 +30,11 @@ router.get('/', (req, res) => {
     ).all(id);
 
     // Enrich shapes with AISC weight per foot for scope page
+    const { normalizeLabel } = require('../lib/sections');
     const aiscLookup = (label) => {
       if (!label) return 0;
-      const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label = ? COLLATE NOCASE')
-        .get(String(label).toUpperCase().replace(/\s+/g, ''));
+      const row = db.prepare('SELECT weight_per_ft FROM aisc_sections WHERE label_norm = ?')
+        .get(normalizeLabel(label));
       return row ? row.weight_per_ft : 0;
     };
     bundle.shapes = (bundle.shapes || []).map(r => ({ ...r, wpf: aiscLookup(r.section_name) }));
