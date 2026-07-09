@@ -8383,5 +8383,50 @@
 "label": "Pipe 12 XXS",
 "t_f": "",
 "weight_per_ft": 126
+},
+{
+"label": "L1-1/2X1-1/2X1/4",
+"t_f": "",
+"weight_per_ft": 2.34
+},
+{
+"label": "L1-1/2X1-1/2X3/16",
+"t_f": "",
+"weight_per_ft": 1.8
+},
+{
+"label": "L1-1/2X1-1/2X1/8",
+"t_f": "",
+"weight_per_ft": 1.23
+},
+{
+"label": "L1-1/4X1-1/4X1/4",
+"t_f": "",
+"weight_per_ft": 1.92
+},
+{
+"label": "L1-1/4X1-1/4X3/16",
+"t_f": "",
+"weight_per_ft": 1.48
+},
+{
+"label": "L1-1/4X1-1/4X1/8",
+"t_f": "",
+"weight_per_ft": 1.01
+},
+{
+"label": "L1X1X1/4",
+"t_f": "",
+"weight_per_ft": 1.49
+},
+{
+"label": "L1X1X3/16",
+"t_f": "",
+"weight_per_ft": 1.16
+},
+{
+"label": "L1X1X1/8",
+"t_f": "",
+"weight_per_ft": 0.8
 }
 ]
