@@ -6,6 +6,7 @@ const { requireAuth } = require('../lib/auth');
 const { loadFullEstimate } = require('./estimates');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { generateSov } = require('../lib/sov_pdf');
+const { footSovItems } = require('../lib/round');
 
 router.use(requireAuth);
 
@@ -170,10 +171,12 @@ function autoGenerateItems(bundle) {
 
   // Drop lines hidden on the proposal, then zero-value items (except the first
   // shown line), apply the price-to-win scale, then strip the internal _key.
-  return items
+  const out = items
     .filter(it => !(it._key && isHidden(it._key)))
     .filter((it, i) => i === 0 || it.scheduled_value > 0)
     .map((it, i) => { const { _key, ...rest } = it; return { ...rest, scheduled_value: (+rest.scheduled_value || 0) * scale, position: i }; });
+  // Whole-dollar SOV lines that still foot to the contract total.
+  return footSovItems(out);
 }
 
 // GET /api/estimates/:id/sov — list items, auto-generate if none exist yet

@@ -7,6 +7,7 @@ const { computeProcess } = require('../lib/calc_process');
 const { parseKiss, parseKissToTakeoff } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
 const { buildProposalView } = require('../lib/proposal_lines');
+const { footSovItems } = require('../lib/round');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
 const { buildWonJobPayload, pushWonJobToTracker } = require('../lib/tracker_push');
@@ -78,7 +79,8 @@ function buildSovItems(bundle) {
   if ((+e.sub_erection || 0) > 0)
     items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   // Cost-Inputs extra rows are folded into items 1/2/5 above, never their own line.
-  return items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
+  const out = items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
+  return footSovItems(out);
 }
 
 const EST_COLS = [
@@ -629,10 +631,18 @@ router.put('/:id', async (req, res) => {
 function applyUpdate(id, body) {
   const sets = [];
   const vals = [];
+  // Bids are quoted in whole dollars. When a manual quote field is present and
+  // holds a numeric value, round it up to the next dollar so stored quotes never
+  // carry cents. An empty string stays empty (means "use the computed total").
+  const ROUND_UP_COLS = new Set(['price_to_win', 'client_quote_amount']);
   for (const k of EST_COLS) {
     if (Object.prototype.hasOwnProperty.call(body, k)) {
+      let v = body[k];
+      if (ROUND_UP_COLS.has(k) && v !== null && v !== '' && !isNaN(+v)) {
+        v = Math.ceil(+v);
+      }
       sets.push(`${k} = ?`);
-      vals.push(body[k]);
+      vals.push(v);
     }
   }
   if (sets.length) {
