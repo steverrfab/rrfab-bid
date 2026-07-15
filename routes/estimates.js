@@ -806,8 +806,9 @@ router.post('/:id/clone', (req, res) => {
 
     // Bid numbering: a revision (clone of a submitted/won/lost bid, or an
     // explicit Revise request) gets the parent's base number with the next .N
-    // suffix and is shown immediately. A plain copy starts unnumbered and hidden
-    // until it's saved.
+    // suffix and is shown immediately. A plain copy is a brand-new job: it is
+    // saved immediately with its own new bid number so it can't be lost by
+    // navigating away, and any inherited job number is cleared.
     const forceRevision = !!(req.body && req.body.revision === true);
     const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
     if (isRevision) {
@@ -818,7 +819,7 @@ router.post('/:id/clone', (req, res) => {
       // twice. If a revision is later abandoned, re-mark bid types by hand.
       db.prepare("UPDATE estimates SET bid_type = 'superseded' WHERE id = ?").run(src.id);
     } else {
-      db.prepare("UPDATE estimates SET bid_number = '', confirmed = 0 WHERE id = ?").run(newId);
+      db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, job_number = NULL WHERE id = ?").run(nextBidNumber(), newId);
     }
 
     // Bring alternates along: clone each alternate of the source base bid and
