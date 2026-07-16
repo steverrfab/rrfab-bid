@@ -839,6 +839,42 @@ router.post('/:id/resubmit', async (req, res) => {
   });
 });
 
+// ---- RESUBMIT PREVIEW (read-only) ----
+// Powers the "what's about to be resubmitted" panel in the resubmit dialog:
+// a small summary plus the change list that WOULD be recorded, diffed against
+// the last submission. Writes nothing.
+router.get('/:id/resubmit-preview', (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare('SELECT id, status, submit_snapshot FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+
+  let changes = [];
+  const hasBaseline = !!row.submit_snapshot;
+  try {
+    if (row.submit_snapshot) {
+      changes = diffSnapshots(JSON.parse(row.submit_snapshot), buildSnapshot(db, id));
+    }
+  } catch (e) { console.error('[resubmit-preview] diff error:', e.message); changes = []; }
+
+  let summary = {};
+  try {
+    const bundle = loadFullEstimate(id);
+    const e = bundle.estimate || {};
+    const isPO = e.job_type === 'process_only';
+    let sellPrice = 0;
+    try {
+      if (isPO) sellPrice = (bundle.processComputed && bundle.processComputed.quoted) || 0;
+      else { const view = buildProposalView(bundle); sellPrice = (view && view.subtotal) || 0; }
+    } catch (e2) { sellPrice = 0; }
+    summary = {
+      project_name: e.project_name || '', bid_number: e.bid_number || '',
+      client_gc: e.client_gc || '', sell_price: sellPrice
+    };
+  } catch (e) { summary = {}; }
+
+  res.json({ status: row.status, hasBaseline, changes, summary });
+});
+
 // ---- CLONE ----
 // Copy every child-table row from one estimate to another. This is exactly the
 // set of inserts the clone route has always done, pulled into a helper so both
