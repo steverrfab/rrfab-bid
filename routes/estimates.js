@@ -176,7 +176,10 @@ function loadFullEstimate(id, opts = {}) {
   const processLines = db.prepare('SELECT * FROM process_only_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processAddcosts = db.prepare('SELECT * FROM process_only_addcosts WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processComputed = computeProcess(est, processLines, processAddcosts);
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines };
+  // Resubmit history: who/when/why for each in-place resubmit of this bid.
+  // Newest first. Empty for bids that have never been resubmitted.
+  const resubmits = db.prepare('SELECT id, note, user_id, user_name, created_at FROM estimate_resubmits WHERE estimate_id = ? ORDER BY created_at DESC, id DESC').all(id);
+  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines, resubmits };
 }
 
 // ---- OWNERSHIP CHECK ----
@@ -738,6 +741,64 @@ router.post('/:id/submit', async (req, res) => {
   }
 
   // Return bundle with notification info (send doesn't wait for email)
+  res.json({
+    ...bundle,
+    notification: isTestLike
+      ? { ok: true, sent: 0, skipped: bidType + ' bid — no notification sent' }
+      : { ok: true, sent: recipients.length }
+  });
+});
+
+// ---- RESUBMIT ----
+// Lightweight, in-place re-issue of a bid that is already Submitted, for a quick
+// change the GC asked for. Unlike Revise (which clones a new .N revision), this
+// keeps the SAME bid number and status. It bumps the proposal date to today (the
+// resubmit date) so the regenerated PDF carries the new date, records a required
+// reason plus who/when in the resubmit log, and re-emails the recipients. It does
+// NOT touch submitted_at, so the original submission timestamp is preserved.
+router.post('/:id/resubmit', async (req, res) => {
+  const id = Number(req.params.id);
+  const note = String((req.body || {}).note || '').trim();
+  if (!note) {
+    return res.status(400).json({ error: 'A reason for the change is required to resubmit.' });
+  }
+  const est = db.prepare('SELECT id, status FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!est) return res.status(404).json({ error: 'not found' });
+  if (est.status !== 'Submitted') {
+    return res.status(400).json({ error: 'Only a Submitted bid can be resubmitted.' });
+  }
+
+  const now = new Date().toISOString();
+  const todayDate = now.split('T')[0]; // YYYY-MM-DD — the resubmit date
+
+  const tx = db.transaction(() => {
+    // Bump the proposal date to today; leave submitted_at (original submit) alone.
+    db.prepare(`
+      UPDATE estimates
+      SET proposal_date = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(todayDate, id);
+    // Audit entry: required reason + who + when (server clock).
+    db.prepare(`
+      INSERT INTO estimate_resubmits (estimate_id, note, user_id, user_name, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, note, (req.user && req.user.userId) || null, (req.user && req.user.name) || '', now);
+  });
+  tx();
+
+  const bundle = loadFullEstimate(id);
+  // Same recipient rules as the initial submit: Test/Demo bids notify no one.
+  const bidType = bundle.estimate && bundle.estimate.bid_type;
+  const isTestLike = bidType === 'test' || bidType === 'demo';
+  const recipients = isTestLike
+    ? []
+    : db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
+
+  if (!isTestLike) {
+    sendReadyToSubmit(bundle, recipients).catch(err => console.error('[resubmit] email error:', err));
+  }
+
   res.json({
     ...bundle,
     notification: isTestLike
