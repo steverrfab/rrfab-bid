@@ -10,11 +10,15 @@ router.use(requireAdmin);
 
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'https://bid.rrfabrication.org';
 
+// Tracker access levels. These map to the Project Tracker's own roles;
+// 'none' means no tracker access. Enforced in code, not a DB CHECK.
+const TRACKER_ROLES = ['none', 'shop', 'pm', 'accounting', 'admin'];
+
 // GET /api/users
 router.get('/', (req, res) => {
   const users = db.prepare(`
     SELECT
-      u.id, u.email, u.name, u.role, u.active, u.created_at,
+      u.id, u.email, u.name, u.role, u.active, u.created_at, u.tracker_role,
       (SELECT used_at  FROM invites WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as invite_used_at,
       (SELECT expires_at FROM invites WHERE user_id = u.id AND used_at IS NULL
          AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1) as pending_invite_expires
@@ -66,11 +70,11 @@ router.post('/invite', async (req, res) => {
   res.json({ ok: true, inviteUrl, emailResult });
 });
 
-// PUT /api/users/:id  { role?, active?, password?, name?, phone? }
+// PUT /api/users/:id  { role?, active?, password?, name?, phone?, tracker_role? }
 router.put('/:id', (req, res) => {
   const { signToken, hashPassword } = require('../lib/auth');
   const id = Number(req.params.id);
-  const { role, active, password, name, phone } = req.body || {};
+  const { role, active, password, name, phone, tracker_role } = req.body || {};
 
   // Users can only update their own profile (name, phone)
   // Admins can manage roles/active status
@@ -85,6 +89,14 @@ router.put('/:id', (req, res) => {
       : ['estimator'];
     if (!allowed.includes(role)) {
       return res.status(403).json({ error: 'You do not have permission to assign that role.' });
+    }
+  }
+  if (tracker_role !== undefined) {
+    if (!TRACKER_ROLES.includes(tracker_role)) {
+      return res.status(400).json({ error: 'Invalid tracker role.' });
+    }
+    if (tracker_role === 'admin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can grant tracker admin access.' });
     }
   }
 
@@ -105,6 +117,7 @@ router.put('/:id', (req, res) => {
   if (password !== undefined) { sets.push('password_hash = ?'); params.push(hashPassword(password)); }
   if (name !== undefined)   { sets.push('name = ?');   params.push(name ? name.trim() : null); }
   if (phone !== undefined)  { sets.push('phone = ?');  params.push(phone ? phone.trim() : null); }
+  if (tracker_role !== undefined) { sets.push('tracker_role = ?'); params.push(tracker_role); }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
 
   params.push(id);
