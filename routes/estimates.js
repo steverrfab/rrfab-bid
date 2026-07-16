@@ -9,8 +9,9 @@ const { parseTemplate } = require('../lib/parser');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { footSovItems } = require('../lib/round');
 const { generateProposalBuffer } = require('../lib/pdf');
-const { sendReadyToSubmit, sendWonNotification } = require('../lib/email');
+const { sendReadyToSubmit, sendResubmitNotification, sendWonNotification } = require('../lib/email');
 const { buildWonJobPayload, pushWonJobToTracker } = require('../lib/tracker_push');
+const { buildSnapshot, diffSnapshots } = require('../lib/resubmit_diff');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -176,9 +177,13 @@ function loadFullEstimate(id, opts = {}) {
   const processLines = db.prepare('SELECT * FROM process_only_lines WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processAddcosts = db.prepare('SELECT * FROM process_only_addcosts WHERE estimate_id = ? ORDER BY position, id').all(id);
   const processComputed = computeProcess(est, processLines, processAddcosts);
-  // Resubmit history: who/when/why for each in-place resubmit of this bid.
-  // Newest first. Empty for bids that have never been resubmitted.
-  const resubmits = db.prepare('SELECT id, note, user_id, user_name, created_at FROM estimate_resubmits WHERE estimate_id = ? ORDER BY created_at DESC, id DESC').all(id);
+  // Resubmit history: who/when/why (+ auto-detected changes) for each in-place
+  // resubmit of this bid. Newest first. Empty for bids never resubmitted.
+  const resubmits = db.prepare('SELECT id, note, user_id, user_name, created_at, changes FROM estimate_resubmits WHERE estimate_id = ? ORDER BY created_at DESC, id DESC').all(id);
+  for (const r of resubmits) {
+    try { r.changes = r.changes ? JSON.parse(r.changes) : []; }
+    catch (e) { r.changes = []; }
+  }
   return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines, resubmits };
 }
 
@@ -726,6 +731,13 @@ router.post('/:id/submit', async (req, res) => {
     WHERE id = ?
   `).run(now, proposalDate, id);
 
+  // Baseline snapshot of the bid's priced inputs, so the first resubmit can
+  // diff against it. Never let a snapshot failure break submit.
+  try {
+    db.prepare('UPDATE estimates SET submit_snapshot = ? WHERE id = ?')
+      .run(JSON.stringify(buildSnapshot(db, id)), id);
+  } catch (e) { console.error('[submit] snapshot error:', e.message); }
+
   const bundle = loadFullEstimate(id);
   // Test/Demo bids exist only for trying things out: they never notify anyone
   // and never count in dashboard totals. Skip the email entirely for them.
@@ -771,6 +783,20 @@ router.post('/:id/resubmit', async (req, res) => {
   const now = new Date().toISOString();
   const todayDate = now.split('T')[0]; // YYYY-MM-DD — the resubmit date
 
+  // Auto-detect what changed since the last submit/resubmit by diffing the prior
+  // snapshot against the current inputs. Read-only and defensive: any failure
+  // just yields an empty change list and never blocks the resubmit.
+  let changes = [];
+  let newSnapshot = null;
+  try {
+    const prevRow = db.prepare('SELECT submit_snapshot FROM estimates WHERE id = ?').get(id);
+    const current = buildSnapshot(db, id);
+    newSnapshot = JSON.stringify(current);
+    if (prevRow && prevRow.submit_snapshot) {
+      changes = diffSnapshots(JSON.parse(prevRow.submit_snapshot), current);
+    }
+  } catch (e) { console.error('[resubmit] diff error:', e.message); changes = []; }
+
   const tx = db.transaction(() => {
     // Bump the proposal date to today; leave submitted_at (original submit) alone.
     db.prepare(`
@@ -779,11 +805,15 @@ router.post('/:id/resubmit', async (req, res) => {
           updated_at = datetime('now')
       WHERE id = ?
     `).run(todayDate, id);
-    // Audit entry: required reason + who + when (server clock).
+    // Audit entry: required reason + who + when (server clock) + detected changes.
     db.prepare(`
-      INSERT INTO estimate_resubmits (estimate_id, note, user_id, user_name, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, note, (req.user && req.user.userId) || null, (req.user && req.user.name) || '', now);
+      INSERT INTO estimate_resubmits (estimate_id, note, user_id, user_name, created_at, changes)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, note, (req.user && req.user.userId) || null, (req.user && req.user.name) || '', now, JSON.stringify(changes));
+    // Refresh the baseline so the NEXT resubmit diffs against this state.
+    if (newSnapshot) {
+      db.prepare('UPDATE estimates SET submit_snapshot = ? WHERE id = ?').run(newSnapshot, id);
+    }
   });
   tx();
 
@@ -796,7 +826,9 @@ router.post('/:id/resubmit', async (req, res) => {
     : db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
 
   if (!isTestLike) {
-    sendReadyToSubmit(bundle, recipients).catch(err => console.error('[resubmit] email error:', err));
+    const userName = (req.user && req.user.name) || '';
+    sendResubmitNotification(bundle, recipients, { note, userName, changes })
+      .catch(err => console.error('[resubmit] email error:', err));
   }
 
   res.json({
