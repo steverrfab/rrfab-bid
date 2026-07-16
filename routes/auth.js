@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
@@ -18,15 +19,35 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: user.tracker_role } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   res.json(user);
+});
+
+// POST /api/auth/tracker-sso: mint a short-lived signed token that logs the
+// user into the Project Tracker. The tracker verifies it with the shared
+// TRACKER_KEY secret already used by the won-jobs feed.
+router.post('/tracker-sso', (req, res) => {
+  if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
+  const user = db.prepare('SELECT email, name, active, tracker_role FROM users WHERE id = ?').get(req.user.userId);
+  if (!user || !user.active || !user.tracker_role || user.tracker_role === 'none') {
+    return res.status(403).json({ error: 'No tracker access' });
+  }
+  const base = process.env.TRACKER_API_URL;
+  const key = process.env.TRACKER_KEY;
+  if (!base || !key) return res.status(503).json({ error: 'Tracker connection not configured' });
+  const token = jwt.sign(
+    { email: user.email, name: user.name, tracker_role: user.tracker_role, purpose: 'tracker-sso' },
+    key,
+    { algorithm: 'HS256', expiresIn: 120 }
+  );
+  res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` });
 });
 
 // GET /api/auth/invite/:token  — validate token, return email (public)
@@ -57,7 +78,7 @@ router.post('/invite/:token/accept', (req, res) => {
   db.prepare("UPDATE invites SET used_at = datetime('now') WHERE id = ?")
     .run(invite.id);
 
-  const user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(invite.user_id);
+  const user = db.prepare('SELECT id, email, name, role, tracker_role FROM users WHERE id = ?').get(invite.user_id);
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
   res.json({ token, user });
 });
