@@ -1446,4 +1446,36 @@ router.get('/feed/won-jobs', (req, res) => {
   res.json({ jobs });
 });
 
+// ---- INTEGRATION FEED: Schedule of Values for one estimate (read-only) ----
+// Protected by the same shared TRACKER_KEY as the won-jobs feed. Returns the
+// saved SOV lines for an estimate (auto-generating from the computed totals if
+// the estimate has never opened its SOV tab), in the shape the Project
+// Tracker's sync-sov expects: { sov: [ { item_no, description,
+// scheduled_value, position } ] }.
+router.get('/feed/sov/:id', (req, res) => {
+  const expected = process.env.TRACKER_KEY || '';
+  const provided = req.get('X-Integration-Key') || '';
+  if (!expected || provided !== expected) {
+    return res.status(401).json({ error: 'invalid integration key' });
+  }
+  const id = Number(req.params.id);
+  const est = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!est) return res.status(404).json({ error: 'not found' });
+
+  let items = db.prepare(
+    'SELECT item_no, description, scheduled_value, position FROM sov_items WHERE estimate_id = ? ORDER BY position, id'
+  ).all(id);
+  if (items.length === 0) {
+    const bundle = loadFullEstimate(id);
+    if (bundle) items = buildSovItems(bundle);
+  }
+  const sov = items.map((it, i) => ({
+    item_no: it.item_no != null ? String(it.item_no) : String(i + 1),
+    description: it.description || '',
+    scheduled_value: +it.scheduled_value || 0,
+    position: it.position != null ? it.position : i,
+  }));
+  res.json({ sov });
+});
+
 module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
