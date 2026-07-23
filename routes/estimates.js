@@ -913,14 +913,15 @@ function copyEstimateChildren(srcId, newId) {
 // Clone one estimate row (all saveable columns except submitted_at) plus all its
 // child rows. Returns the new id. Status is forced to Draft and the project name
 // gets an optional suffix, matching the original clone behavior exactly.
-function cloneEstimateRow(src, projectSuffix) {
-  const cols = EST_COLS.filter(c => c !== 'submitted_at');
-  const placeholders = cols.map(() => '?').join(',');
+fufunction cloneEstimateRow(src, projectSuffix) {
+    const cols = EST_COLS.filter(c => c !== 'submitted_at' && c !== 'proposal_date');
+      const placeholders = cols.map(() => '?').join(',');
+}
   const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + (projectSuffix || '') : src[c]));
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
   copyEstimateChildren(src.id, newId);
-  return newId;
+  
 }
 
 router.post('/:id/clone', (req, res) => {
