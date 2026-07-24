@@ -639,6 +639,16 @@ router.put('/:id', async (req, res) => {
 function applyUpdate(id, body) {
   const sets = [];
   const vals = [];
+  // While a bid is still a Draft, treat every save as "last worked on" and bump
+  // proposal_date to today, so it keeps advancing until the bid is Submitted,
+  // Resubmitted, or Revised (those routes own the date from that point on). If
+  // the caller passed an explicit proposal_date, we respect it below instead of
+  // overriding it. Look this up before building the update so a status change in
+  // the same body doesn't affect the decision.
+  const cur = db.prepare('SELECT status FROM estimates WHERE id = ?').get(id);
+  const bumpProposalDate =
+    cur && cur.status === 'Draft' &&
+    !Object.prototype.hasOwnProperty.call(body, 'proposal_date');
   // Bids are quoted in whole dollars. When a manual quote field is present and
   // holds a numeric value, round it up to the next dollar so stored quotes never
   // carry cents. An empty string stays empty (means "use the computed total").
@@ -652,6 +662,11 @@ function applyUpdate(id, body) {
       sets.push(`${k} = ?`);
       vals.push(v);
     }
+  }
+  if (bumpProposalDate) {
+    const todayDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    sets.push('proposal_date = ?');
+    vals.push(todayDate);
   }
   if (sets.length) {
     sets.push("updated_at = datetime('now')");
