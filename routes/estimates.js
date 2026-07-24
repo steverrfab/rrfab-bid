@@ -910,18 +910,19 @@ function copyEstimateChildren(srcId, newId) {
   `).run(newId, srcId);
 }
 
-// Clone one estimate row (all saveable columns except submitted_at) plus all its
-// child rows. Returns the new id. Status is forced to Draft and the project name
-// gets an optional suffix, matching the original clone behavior exactly.
-fufunction cloneEstimateRow(src, projectSuffix) {
-    const cols = EST_COLS.filter(c => c !== 'submitted_at' && c !== 'proposal_date');
-      const placeholders = cols.map(() => '?').join(',');
-}
+// Clone one estimate row (all saveable columns except submitted_at and
+// proposal_date) plus all its child rows. Returns the new id. Status is forced
+// to Draft and the project name gets an optional suffix, matching the original
+// clone behavior exactly. proposal_date is excluded so it comes in NULL and gets
+// stamped fresh on next submit/download, just like submitted_at.
+function cloneEstimateRow(src, projectSuffix) {
+  const cols = EST_COLS.filter(c => c !== 'submitted_at' && c !== 'proposal_date');
+  const placeholders = cols.map(() => '?').join(',');
   const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + (projectSuffix || '') : src[c]));
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
   copyEstimateChildren(src.id, newId);
-  
+  return newId;
 }
 
 router.post('/:id/clone', (req, res) => {
