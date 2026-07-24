@@ -553,11 +553,11 @@ router.put('/:id', async (req, res) => {
     const jobType = (grow && grow.job_type) || 'full';
     const hasIncoming = Object.prototype.hasOwnProperty.call(req.body || {}, 'job_number');
     const candidate = String((hasIncoming ? req.body.job_number : (grow && grow.job_number)) || '').trim();
-    const pattern = jobType === 'process_only' ? /^P-\d{3}$/ : /^\d{4}-\d{4}$/;
+    const pattern = jobType === 'process_only' ? /^P-\d{3}(-\d{1,2})?$/ : /^\d{4}-\d{4}$/;
     if (!pattern.test(candidate)) {
       return res.status(400).json({
         error: jobType === 'process_only'
-          ? 'A job number (P- followed by 3 digits) is required to mark this bid Won.'
+          ? 'A job number (P- followed by 3 digits, optionally -1/-2/-3 for a phase) is required to mark this bid Won.'
           : 'A job number (4 digits, a dash, then 4 digits, e.g. 1234-5678) is required to mark this bid Won.'
       });
     }
