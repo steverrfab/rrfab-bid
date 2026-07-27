@@ -644,6 +644,11 @@ router.put('/:id', async (req, res) => {
 
   // On transition to Won: auto-generate SOV if not already present, then email recipients
   const newStatus = (req.body || {}).status;
+  // Reported back to the client so marking a bid Won can confirm the email the
+  // same way Ready to Submit does. Stays null for every update that is not a
+  // fresh Won transition, so the UI can tell "no email was due" from "an email
+  // was due and went to N people".
+  let wonNotification = null;
   if (newStatus === 'Won' && prev.status !== 'Won') {
     // Stamp the date this bid was marked Won (drives the dashboard Won card time filter)
     db.prepare("UPDATE estimates SET won_at = datetime('now') WHERE id = ?").run(id);
@@ -674,16 +679,29 @@ router.put('/:id', async (req, res) => {
       });
       tx(sovItems);
     }
-    // Notify recipients (fire-and-forget, don't block response)
-    const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
-    console.log(`[won] bid ${id} marked Won; notifying ${recipients.length} active recipient(s):`, recipients.map(r => r.email).join(', ') || '(none)');
-    sendWonNotification(bundle, recipients).catch(err => console.error('[won] email error:', err));
+    // Notify recipients (fire-and-forget, don't block response).
+    // Same rule as submit and resubmit: Test/Demo bids never notify anyone.
+    // This path used to skip that check, so marking a test bid Won emailed the
+    // whole list.
+    const wonBidType = bundle.estimate && bundle.estimate.bid_type;
+    const wonIsTestLike = wonBidType === 'test' || wonBidType === 'demo';
+    const recipients = wonIsTestLike
+      ? []
+      : db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
+    if (wonIsTestLike) {
+      console.log(`[won] bid ${id} marked Won; ${wonBidType} bid, no notification sent`);
+      wonNotification = { ok: true, sent: 0, skipped: wonBidType + ' bid — no notification sent' };
+    } else {
+      console.log(`[won] bid ${id} marked Won; notifying ${recipients.length} active recipient(s):`, recipients.map(r => r.email).join(', ') || '(none)');
+      sendWonNotification(bundle, recipients).catch(err => console.error('[won] email error:', err));
+      wonNotification = { ok: true, sent: recipients.length };
+    }
     // Push this won job to the Project Tracker in real time. Fire-and-forget, and
     // reloaded so it carries the freshly assigned job number and won_at stamp.
     try { pushWonJobToTracker(loadFullEstimate(id)); } catch (e) { console.error('[tracker push] error:', e.message); }
   }
 
-  res.json(bundle);
+  res.json(wonNotification ? { ...bundle, wonNotification } : bundle);
 });
 
 function applyUpdate(id, body) {
@@ -813,8 +831,24 @@ router.post('/:id/submit', async (req, res) => {
     : db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
 
   if (!isTestLike) {
-    // Send email notification (fire-and-forget)
-    sendReadyToSubmit(bundle, recipients).catch(err => console.error('[submit] email error:', err));
+    // Generate the proposal PDF and attach it. Still fire-and-forget so the
+    // response is not held up by PDF rendering plus an SMTP round trip, but the
+    // email body and the Settings copy both promise an attachment, so it has to
+    // be built here rather than skipped. A PDF failure must not swallow the
+    // notification: fall back to sending without the attachment and say so in
+    // the log, since a bid nobody hears about is worse than one without a PDF.
+    (async () => {
+      let pdfBuffer = null;
+      try {
+        pdfBuffer = await generateProposalBuffer(bundle);
+      } catch (err) {
+        console.error('[submit] proposal PDF failed, sending without attachment:', err.message || err);
+      }
+      const result = await sendReadyToSubmit(bundle, recipients, pdfBuffer);
+      if (result && result.ok && !pdfBuffer) {
+        console.warn('[submit] bid ' + id + ' notified WITHOUT the PDF attachment');
+      }
+    })().catch(err => console.error('[submit] email error:', err));
   }
 
   // Return bundle with notification info (send doesn't wait for email)
