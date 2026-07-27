@@ -341,6 +341,55 @@ router.get('/summary', (req, res) => {
   res.json({ rows });
 });
 
+// ---- ACTIVITY FEED (read-only) ----
+// Powers in-app desktop notifications: bids that were submitted or won since a
+// given timestamp. The client polls this while the app is open and raises a
+// browser notification for anything new. Writes nothing, and deliberately
+// mirrors the email rules — Test/Demo bids and alternates never surface.
+//
+// `since` is an ISO timestamp; omit it to just get the server clock back so the
+// client can establish a baseline without firing a burst of stale notifications.
+//
+// The two timestamp columns are written in DIFFERENT formats: submitted_at is a
+// JS ISO string ("2026-07-27T15:10:19.042Z") while won_at comes from SQLite's
+// datetime('now') ("2026-07-27 15:10:19"). A plain string compare puts every
+// won_at BELOW any same-day ISO value (space sorts before 'T'), so Won events
+// would never surface. Everything is normalised through datetime() on both
+// sides instead. That costs sub-second precision, so the window is inclusive
+// (>=) and each event carries a stable `key` for the client to dedupe on —
+// an exclusive compare would silently drop an event landing in the same second
+// as the previous poll's cutoff.
+router.get('/activity', (req, res) => {
+  const now = new Date().toISOString();
+  const since = String(req.query.since || '').trim();
+  if (!since) return res.json({ now, events: [] });
+  if (isNaN(Date.parse(since))) return res.status(400).json({ error: 'since must be an ISO timestamp' });
+
+  const rows = db.prepare(`
+    SELECT id, bid_number, project_name, client_gc,
+           CASE WHEN submitted_at IS NOT NULL AND datetime(submitted_at) >= datetime(?)
+                THEN strftime('%Y-%m-%dT%H:%M:%SZ', submitted_at) END AS sub_at,
+           CASE WHEN won_at IS NOT NULL AND datetime(won_at) >= datetime(?)
+                THEN strftime('%Y-%m-%dT%H:%M:%SZ', won_at) END AS win_at
+    FROM estimates
+    WHERE deleted_at IS NULL
+      AND is_alternate = 0
+      AND (bid_type = 'real' OR bid_type IS NULL)
+      AND (datetime(submitted_at) >= datetime(?) OR datetime(won_at) >= datetime(?))
+    ORDER BY id ASC
+    LIMIT 50
+  `).all(since, since, since, since);
+
+  const events = [];
+  for (const r of rows) {
+    const base = { id: r.id, bid_number: r.bid_number, project_name: r.project_name, client_gc: r.client_gc };
+    if (r.sub_at) events.push({ ...base, type: 'submitted', at: r.sub_at, key: r.id + ':submitted' });
+    if (r.win_at) events.push({ ...base, type: 'won', at: r.win_at, key: r.id + ':won' });
+  }
+  events.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  res.json({ now, events });
+});
+
 // Sales tax owed per Won job (admin only). Sales tax is a pass-through we
 // collect and remit, so the dashboard reports pre-tax; this is the one place
 // tax is totaled. Mirrors the same visibility filters as /summary.
