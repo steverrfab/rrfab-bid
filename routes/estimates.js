@@ -627,7 +627,8 @@ router.put('/:id', async (req, res) => {
     }
     // Notify recipients (fire-and-forget, don't block response)
     const recipients = db.prepare('SELECT email, name FROM notification_recipients WHERE active = 1').all();
-    sendWonNotification(bundle, recipients).catch(err => console.error('[sov] email error:', err));
+    console.log(`[won] bid ${id} marked Won; notifying ${recipients.length} active recipient(s):`, recipients.map(r => r.email).join(', ') || '(none)');
+    sendWonNotification(bundle, recipients).catch(err => console.error('[won] email error:', err));
     // Push this won job to the Project Tracker in real time. Fire-and-forget, and
     // reloaded so it carries the freshly assigned job number and won_at stamp.
     try { pushWonJobToTracker(loadFullEstimate(id)); } catch (e) { console.error('[tracker push] error:', e.message); }
