@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node test/calc.test.js && node test/parser.test.js"
   },
   "engines": {
     "node": "20.x"
