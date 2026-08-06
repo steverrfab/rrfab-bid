@@ -984,8 +984,8 @@ function copyEstimateChildren(srcId, newId) {
     SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
+    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
+    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
     INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
@@ -1180,8 +1180,8 @@ router.put('/:id/takeoff/shapes', (req, res) => {
     db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
       INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft,
-        l1,l2,l3,l4,l5,l6,l7,l8, drawing, notes, manual_wpf)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
@@ -1195,6 +1195,8 @@ router.put('/:id/takeoff/shapes', (req, res) => {
         +r.drop_ft || 0,
         +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
         +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
+        +r.q1 || 0, +r.q2 || 0, +r.q3 || 0, +r.q4 || 0,
+        +r.q5 || 0, +r.q6 || 0, +r.q7 || 0, +r.q8 || 0,
         r.drawing || '',
         r.notes || '',
         +r.manual_wpf || 0
@@ -1334,8 +1336,8 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         : 0;
 
       const shapeInsert = db.prepare(`
-        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, drawing, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, q1, q2, q3, q4, q5, q6, q7, q8, drawing, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       (parsed.shapes || []).forEach((r, i) => {
         shapeInsert.run(
@@ -1344,6 +1346,8 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
           +r.cost_factor || 0, +r.drop_ft || 0,
           +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
           +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
+          +r.q1 || 0, +r.q2 || 0, +r.q3 || 0, +r.q4 || 0,
+          +r.q5 || 0, +r.q6 || 0, +r.q7 || 0, +r.q8 || 0,
           r.drawing || '',
           r.notes || ''
         );
