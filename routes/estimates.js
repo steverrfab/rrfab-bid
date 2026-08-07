@@ -6,6 +6,7 @@ const calc = require('../lib/calc');
 const { computeProcess } = require('../lib/calc_process');
 const { parseKiss, parseKissToTakeoff } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
+const { subLabel } = require('../lib/sub_labels');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { footSovItems } = require('../lib/round');
 const { generateProposalBuffer } = require('../lib/pdf');
@@ -76,9 +77,9 @@ function buildSovItems(bundle) {
 
   let next = 7;
   if ((+e.sub_joist_deck || 0) > 0)
-    items.push({ item_no: String(next++), description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
+    items.push({ item_no: String(next++), description: subLabel(e.sub_joist_deck_label, 'Joist and Deck — by Subcontractor'), scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   if ((+e.sub_erection || 0) > 0)
-    items.push({ item_no: String(next++), description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
+    items.push({ item_no: String(next++), description: subLabel(e.sub_erection_label, 'Erection — by Subcontractor'), scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   // Cost-Inputs extra rows are folded into items 1/2/5 above, never their own line.
   const out = items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
   return footSovItems(out);
@@ -103,6 +104,7 @@ const EST_COLS = [
   'submitted_at',
   'notes',
   'sub_joist_deck', 'sub_erection',
+  'sub_joist_deck_label', 'sub_erection_label',
   'struct_detailing_qty', 'misc_detailing_qty', 'pe_stamp_qty',
   'freight_qty', 'erection_equip_qty', 'sub_joist_deck_qty', 'sub_erection_qty',
   // Process-only mode
@@ -984,8 +986,8 @@ function copyEstimateChildren(srcId, newId) {
     SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
+    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, drop_pct, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
+    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, drop_pct, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
   `).run(newId, srcId);
   db.prepare(`
     INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
@@ -1179,9 +1181,9 @@ router.put('/:id/takeoff/shapes', (req, res) => {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM takeoff_shapes WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
-      INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft,
+      INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, drop_pct,
         l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
@@ -1193,6 +1195,7 @@ router.put('/:id/takeoff/shapes', (req, res) => {
         r.section_name || '',
         +r.cost_factor || 0,
         +r.drop_ft || 0,
+        +r.drop_pct || 0,
         +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
         +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
         +r.q1 || 0, +r.q2 || 0, +r.q3 || 0, +r.q4 || 0,
@@ -1336,14 +1339,14 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
         : 0;
 
       const shapeInsert = db.prepare(`
-        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, l1, l2, l3, l4, l5, l6, l7, l8, q1, q2, q3, q4, q5, q6, q7, q8, drawing, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO takeoff_shapes (estimate_id, position, section_type, section_name, cost_factor, drop_ft, drop_pct, l1, l2, l3, l4, l5, l6, l7, l8, q1, q2, q3, q4, q5, q6, q7, q8, drawing, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       (parsed.shapes || []).forEach((r, i) => {
         shapeInsert.run(
           id, startShapePos + i + 1,
           r.section_type || '', r.section_name || '',
-          +r.cost_factor || 0, +r.drop_ft || 0,
+          +r.cost_factor || 0, +r.drop_ft || 0, +r.drop_pct || 0,
           +r.l1 || 0, +r.l2 || 0, +r.l3 || 0, +r.l4 || 0,
           +r.l5 || 0, +r.l6 || 0, +r.l7 || 0, +r.l8 || 0,
           +r.q1 || 0, +r.q2 || 0, +r.q3 || 0, +r.q4 || 0,

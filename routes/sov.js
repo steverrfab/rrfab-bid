@@ -6,6 +6,7 @@ const { requireAuth } = require('../lib/auth');
 const { loadFullEstimate } = require('./estimates');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { generateSov } = require('../lib/sov_pdf');
+const { subLabel } = require('../lib/sub_labels');
 const { footSovItems } = require('../lib/round');
 
 router.use(requireAuth);
@@ -126,10 +127,10 @@ function autoGenerateItems(bundle) {
   // Add sub items if non-zero (item 7 freed up after Processing Labor merged into 2)
   let next = 7;
   if ((+e.sub_joist_deck || 0) > 0) {
-    items.push({ item_no: String(next++), _key: 'sub:joist', description: 'Joist and Deck — by Subcontractor', scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
+    items.push({ item_no: String(next++), _key: 'sub:joist', description: subLabel(e.sub_joist_deck_label, 'Joist and Deck — by Subcontractor'), scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
   }
   if ((+e.sub_erection || 0) > 0) {
-    items.push({ item_no: String(next++), _key: 'sub:erection', description: 'Erection — by Subcontractor', scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
+    items.push({ item_no: String(next++), _key: 'sub:erection', description: subLabel(e.sub_erection_label, 'Erection — by Subcontractor'), scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
   }
 
   // Cost-Inputs extra rows are folded into items 1/2/5 above; they never
