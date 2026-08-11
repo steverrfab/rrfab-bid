@@ -977,38 +977,78 @@ router.get('/:id/resubmit-preview', (req, res) => {
 });
 
 // ---- CLONE ----
-// Copy every child-table row from one estimate to another. This is exactly the
-// set of inserts the clone route has always done, pulled into a helper so both
-// a base bid and its alternates can be cloned the same way.
+// Copy every child-table row from one estimate to another.
+//
+// This used to be a hand-written list of INSERT ... SELECT statements naming
+// every table and every column. It went stale every time the schema moved:
+// proposal edits, site exclusions, extras and the SOV were all silently dropped
+// by a clone, and columns added to tables that WERE on the list (plate
+// weight_lb, material_overrides.source) were dropped too. So the tables are
+// discovered instead: anything with an estimate_id column is a child of an
+// estimate and comes along, every column of it, unless it is named below.
+//
+// A new child table therefore clones correctly the day it is created, with no
+// change here. A new table that should NOT be cloned has to be added to
+// CLONE_SKIP_TABLES.
+//
+//   estimate_locks      live "who has this bid open right now" session state.
+//   estimate_resubmits  the history of what was actually sent to a GC and when.
+//                       That belongs to the bid that was resubmitted, not to a
+//                       fresh copy of it.
+//   change_orders       records raised against a real awarded job. A clone is a
+//                       different job and starts with none. (change_order_lines
+//                       hangs off change_orders, not off estimate_id, so it is
+//                       excluded automatically.)
+const CLONE_SKIP_TABLES = new Set(['estimate_locks', 'estimate_resubmits', 'change_orders']);
+
+// Columns never copied verbatim: the child row's own key, the parent pointer
+// (replaced with the new bid's id), and creation timestamps -- the copy was made
+// now, not when the original was. All of these have defaults, so leaving them
+// out fills them in correctly.
+const CLONE_SKIP_COLS = new Set(['id', 'estimate_id', 'created_at', 'updated_at']);
+
+// Columns copied as 0 rather than as-is. The schedule of values comes across so
+// the new bid keeps its line items and scheduled values, but billing progress
+// (what has already been invoiced) belongs to the job that was actually billed.
+// A clone has billed nothing.
+const CLONE_ZERO_COLS = {
+  sov_items: new Set(['prev_completed', 'this_period', 'stored_materials'])
+};
+
+// Built once on first clone and reused. The schema does not change while the
+// process is running -- migrations run at startup, before any request.
+let cloneChildPlansCache = null;
+function cloneChildPlans() {
+  if (cloneChildPlansCache) return cloneChildPlansCache;
+  const tables = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  ).all().map(r => r.name);
+
+  const plans = [];
+  for (const table of tables) {
+    if (CLONE_SKIP_TABLES.has(table)) continue;
+    const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(c => c.name);
+    if (!cols.includes('estimate_id')) continue;
+
+    const carried = cols.filter(c => !CLONE_SKIP_COLS.has(c));
+    const zeroed = CLONE_ZERO_COLS[table] || new Set();
+    const target = ['estimate_id', ...carried].map(c => `"${c}"`).join(', ');
+    const source = ['?', ...carried.map(c => (zeroed.has(c) ? '0' : `"${c}"`))].join(', ');
+    plans.push({
+      table,
+      stmt: db.prepare(
+        `INSERT INTO "${table}" (${target}) SELECT ${source} FROM "${table}" WHERE estimate_id = ?`
+      )
+    });
+  }
+  cloneChildPlansCache = plans;
+  return plans;
+}
+
 function copyEstimateChildren(srcId, newId) {
-  db.prepare(`
-    INSERT INTO material_overrides (estimate_id, section, weight_lb, cost_per_cwt)
-    SELECT ?, section, weight_lb, cost_per_cwt FROM material_overrides WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO takeoff_shapes (estimate_id, section_type, position, section_name, cost_factor, drop_ft, drop_pct, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf)
-    SELECT ?, section_type, position, section_name, cost_factor, drop_ft, drop_pct, l1,l2,l3,l4,l5,l6,l7,l8, q1,q2,q3,q4,q5,q6,q7,q8, drawing, notes, manual_wpf FROM takeoff_shapes WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
-    SELECT ?, position, thickness, cost_factor, width_in, length_in, qty, notes FROM takeoff_plates WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO takeoff_misc (estimate_id, position, description, qty, weight_each_lb, cost_per_cwt, notes, length_ft, price_per_ft)
-    SELECT ?, position, description, qty, weight_each_lb, cost_per_cwt, notes, length_ft, price_per_ft FROM takeoff_misc WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO wage_rates (estimate_id, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct)
-    SELECT ?, role, base_rate, cash_in_lieu, fica_pct, futa_pct, suta_pct, wc_pct, gl_pct, umbrella_pct, auto_pct, pp_bond_pct, health_welfare, pension, consumables_pct, fuel_pct, ohp_pct FROM wage_rates WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO process_only_lines (estimate_id, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual)
-    SELECT ?, position, name, line_type, qty, labor_hrs, weight_lb, galv_on, proc_manual FROM process_only_lines WHERE estimate_id = ?
-  `).run(newId, srcId);
-  db.prepare(`
-    INSERT INTO process_only_addcosts (estimate_id, position, name, unit, input_qty, rate, is_flat, is_labor)
-    SELECT ?, position, name, unit, input_qty, rate, is_flat, is_labor FROM process_only_addcosts WHERE estimate_id = ?
-  `).run(newId, srcId);
+  for (const plan of cloneChildPlans()) {
+    plan.stmt.run(newId, srcId);
+  }
 }
 
 // Clone one estimate row (all saveable columns except submitted_at and
@@ -1031,18 +1071,26 @@ router.post('/:id/clone', (req, res) => {
   const src = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!src) return res.status(404).json({ error: 'not found' });
 
-  const suffix = src.status === 'Submitted' ? ' (rev)' : ' (copy)';
+  // Clone always means copy. It never makes a revision, whatever the status of
+  // the bid being cloned. Making a new version of the SAME job is the separate
+  // Revise action, which posts { revision: true } and is the only thing that
+  // takes the revision path below.
+  //
+  // Cloning used to infer "this must be a revision" from the source status, so
+  // duplicating a Submitted, Won or Lost bid to start a similar job renumbered
+  // the copy as .N of that job AND marked the original bid_type = 'superseded',
+  // dropping a live bid out of the dashboard totals as a side effect of a
+  // button that only claimed to duplicate.
+  const isRevision = !!(req.body && req.body.revision === true);
+  const suffix = isRevision ? ' (rev)' : ' (copy)';
   let newId;
   const tx = db.transaction(() => {
     newId = cloneEstimateRow(src, suffix);
 
-    // Bid numbering: a revision (clone of a submitted/won/lost bid, or an
-    // explicit Revise request) gets the parent's base number with the next .N
+    // Bid numbering: a revision gets the parent's base number with the next .N
     // suffix and is shown immediately. A plain copy is a brand-new job: it is
     // saved immediately with its own new bid number so it can't be lost by
     // navigating away, and any inherited job number is cleared.
-    const forceRevision = !!(req.body && req.body.revision === true);
-    const isRevision = forceRevision || src.status === 'Submitted' || src.status === 'Won' || src.status === 'Lost';
     if (isRevision) {
       const base = String(src.bid_number || '').split('.')[0] || nextBidNumber();
       // The new revision is the live bid and always counts in dashboard totals.
@@ -1233,12 +1281,23 @@ router.put('/:id/takeoff/plates', (req, res) => {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM takeoff_plates WHERE estimate_id = ?').run(id);
     const insert = db.prepare(`
-      INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO takeoff_plates (estimate_id, position, thickness, cost_factor, width_in, length_in, qty, weight_lb, drawing, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let pos = 0;
     for (const r of rows) {
       pos += 1;
+      // weight_lb is the weight an outside estimator gave us for this row. When
+      // it is set, calc uses it as-is instead of working weight out from the
+      // plate dimensions, because the estimator's number is the one that was
+      // quoted. This insert used to leave the column out entirely, so the first
+      // save after an import silently threw that number away on EVERY plate
+      // row, not just the one being edited. It is written back now.
+      //
+      // The grid clears weight_lb on a row as soon as thickness, width, length
+      // or qty is edited there, which is what hands that row back to the
+      // dimension calculation. Rows nobody touches keep their imported weight.
+      const importedWeight = +r.weight_lb > 0 ? +r.weight_lb : null;
       insert.run(
         id, r.position != null ? r.position : pos,
         r.thickness || '',
@@ -1246,6 +1305,8 @@ router.put('/:id/takeoff/plates', (req, res) => {
         +r.width_in || 0,
         +r.length_in || 0,
         +r.qty || 0,
+        importedWeight,
+        r.drawing || '',
         r.notes || ''
       );
     }
