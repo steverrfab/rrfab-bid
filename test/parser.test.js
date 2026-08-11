@@ -133,6 +133,44 @@ async function run() {
     passed++; console.log('  ok - plate with no readable dimensions falls back to col J weight');
   }
 
+  // Real-world plate descriptions, copied verbatim from an estimator workbook.
+  // The PL prefix runs straight into the thickness and every dimension carries
+  // an inch mark. Both used to defeat the dimension split: the thickness token
+  // failed to parse, was dropped, and the WIDTH became the thickness, so a
+  // 1-1/4" base plate imported as a 20" plate. With '3/8"' the inch mark also
+  // made the weight table miss and read it as 3 inches thick. Between them the
+  // plate section on a real bid came out at 203,457 lb instead of 13,090.
+  {
+    const lines = [
+      ['P-1', 'PLATE', 'PL1-1/4"x20"x20" - Base Plate',            1.67, 8],
+      ['P-2', 'PLATE', 'PL3/8"x4-1/2"x9" - Shear Plate',           0.75, 10],
+      ['P-3', 'PLATE', 'PL1/2"X8" - Cont. Plate',                  22.75, 1],
+      ['P-4', 'PLATE', 'PL5/16"X4-1/2X5-1/2" - Cont. Bent Plate',  22.75, 1],
+    ];
+    const buf = await buildWorkbook(lines);
+    const parsed = await parseTemplate(buf, 'takeoff.xlsx');
+
+    const base = parsed.plates.find(p => p.thickness === '1-1/4');
+    assert.ok(base, 'PL prefix stripped: thickness is 1-1/4, not the 20 in width');
+    approx(base.width_in, 20, 'width 20 in');
+    passed++; console.log('  ok - "PL1-1/4\\"x20\\"x20\\"" reads thickness 1-1/4, width 20');
+
+    const shear = parsed.plates.find(p => p.thickness === '3/8');
+    assert.ok(shear, 'inch marks stripped: thickness is 3/8, not 3/8"');
+    approx(shear.width_in, 4.5, 'width 4-1/2 in survives the inch mark');
+    passed++; console.log('  ok - inch marks do not leak into the thickness');
+
+    const cont = parsed.plates.find(p => p.thickness === '1/2');
+    assert.ok(cont, 'two-dimension description still parses');
+    approx(cont.width_in, 8, 'width 8 in');
+    passed++; console.log('  ok - a thickness x width description still parses');
+
+    const bent = parsed.plates.find(p => p.thickness === '5/16');
+    assert.ok(bent, 'bent plate thickness parsed');
+    approx(bent.width_in, 10, 'bent developed width = 4-1/2 + 5-1/2, not 4.5 + 5');
+    passed++; console.log('  ok - trailing prose does not truncate the last bent leg');
+  }
+
   console.log('\nAll ' + passed + ' parser tests passed.');
 }
 

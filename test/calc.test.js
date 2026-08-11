@@ -85,4 +85,18 @@ test('takeoffTotals aggregates the new per-piece lengths by section', () => {
   approx(totals.W.weight, 26 * 60);
 });
 
+// A thickness written with an inch mark is a normal spelling and must weigh the
+// same as one without. It used to miss the plate table and fall through to
+// parseFloat, which stops at the slash: '3/8"' read as 3 INCHES thick, eight
+// times the real weight, and '1/2"' as 1 inch, twice.
+test('plate thickness ignores inch marks and reads bare fractions', () => {
+  approx(calc.plateUnitWeight('3/8"'), calc.plateUnitWeight('3/8'));
+  approx(calc.plateUnitWeight('1/2"'), calc.plateUnitWeight('1/2'));
+  approx(calc.plateUnitWeight('1-1/4"'), calc.plateUnitWeight('1-1/4'));
+  approx(calc.plateUnitWeight('3/8'), 0.375 / 12 * 490);   // 15.31 psf, not 122.5
+  approx(calc.plateUnitWeight('1/2'), 0.5 / 12 * 490);     // 20.42 psf, not 40.83
+  // A thickness genuinely given as a decimal still works.
+  approx(calc.plateUnitWeight('0.375'), 0.375 / 12 * 490);
+});
+
 console.log('\nAll ' + passed + ' computeShapeRow tests passed.');
