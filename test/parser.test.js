@@ -7,6 +7,7 @@
 const assert = require('assert');
 const ExcelJS = require('exceljs');
 const { parseTemplate } = require('../lib/parser');
+const calc = require('../lib/calc');
 
 let passed = 0;
 function approx(a, b, msg) {
@@ -150,10 +151,13 @@ async function run() {
     const buf = await buildWorkbook(lines);
     const parsed = await parseTemplate(buf, 'takeoff.xlsx');
 
-    const base = parsed.plates.find(p => p.thickness === '1-1/4');
-    assert.ok(base, 'PL prefix stripped: thickness is 1-1/4, not the 20 in width');
+    // Stored as "1 1/4", the spelling PLATE_PSF uses, so the weight lookup hits
+    // the table instead of falling through to parseFloat and reading one inch.
+    const base = parsed.plates.find(p => p.thickness === '1 1/4');
+    assert.ok(base, 'PL prefix stripped: thickness is 1 1/4, not the 20 in width');
     approx(base.width_in, 20, 'width 20 in');
-    passed++; console.log('  ok - "PL1-1/4\\"x20\\"x20\\"" reads thickness 1-1/4, width 20');
+    approx(calc.plateUnitWeight(base.thickness), 1.25 / 12 * 490, 'and it resolves off the plate table');
+    passed++; console.log('  ok - "PL1-1/4\\"x20\\"x20\\"" reads thickness 1 1/4, width 20');
 
     const shear = parsed.plates.find(p => p.thickness === '3/8');
     assert.ok(shear, 'inch marks stripped: thickness is 3/8, not 3/8"');

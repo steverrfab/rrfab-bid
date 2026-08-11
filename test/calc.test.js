@@ -85,18 +85,24 @@ test('takeoffTotals aggregates the new per-piece lengths by section', () => {
   approx(totals.W.weight, 26 * 60);
 });
 
-// A thickness written with an inch mark is a normal spelling and must weigh the
-// same as one without. It used to miss the plate table and fall through to
-// parseFloat, which stops at the slash: '3/8"' read as 3 INCHES thick, eight
-// times the real weight, and '1/2"' as 1 inch, twice.
-test('plate thickness ignores inch marks and reads bare fractions', () => {
-  approx(calc.plateUnitWeight('3/8"'), calc.plateUnitWeight('3/8'));
-  approx(calc.plateUnitWeight('1/2"'), calc.plateUnitWeight('1/2'));
-  approx(calc.plateUnitWeight('1-1/4"'), calc.plateUnitWeight('1-1/4'));
-  approx(calc.plateUnitWeight('3/8'), 0.375 / 12 * 490);   // 15.31 psf, not 122.5
-  approx(calc.plateUnitWeight('1/2'), 0.5 / 12 * 490);     // 20.42 psf, not 40.83
-  // A thickness genuinely given as a decimal still works.
-  approx(calc.plateUnitWeight('0.375'), 0.375 / 12 * 490);
+// plateUnitWeight is deliberately left alone: bids quoted before August 2026
+// store thicknesses with inch marks and were sent at the numbers it produces,
+// so it must keep producing them. What has to hold is that the spellings the
+// IMPORT now stores all hit the table directly and never reach the parseFloat
+// fallback, because parseFloat stops at the slash and would read '1 1/4' as one
+// inch. Every stock thickness the parser can emit is checked here.
+test('imported thickness spellings all resolve off the plate table', () => {
+  const stock = {
+    '3/16': 0.1875, '1/4': 0.25, '5/16': 0.3125, '3/8': 0.375, '7/16': 0.4375,
+    '1/2': 0.5, '9/16': 0.5625, '5/8': 0.625, '3/4': 0.75, '7/8': 0.875,
+    '1': 1, '1 1/4': 1.25, '1 1/2': 1.5, '2': 2
+  };
+  for (const [key, inches] of Object.entries(stock)) {
+    approx(calc.plateUnitWeight(key), inches / 12 * 490, 'thickness ' + key);
+  }
+  // And the historical behaviour the old bids depend on is unchanged.
+  approx(calc.plateUnitWeight('3/8"'), 3 / 12 * 490);
+  approx(calc.plateUnitWeight('20"'), 20 / 12 * 490);
 });
 
 console.log('\nAll ' + passed + ' computeShapeRow tests passed.');

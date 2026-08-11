@@ -202,6 +202,61 @@ function reconcileWonLostFamilies() {
   }
 }
 
+// One-time: undo the plate weight pinning below.
+//
+// The pinning existed to protect already-quoted bids from a change to
+// plateUnitWeight. That change has since been reverted, and the fix moved to
+// the import path instead, so old rows compute exactly as they always did and
+// there is nothing left to protect them from. The stored weights are no longer
+// doing any work, and they were written to bids that should not have been
+// touched, so they come back out.
+//
+// Only rows the pinning itself wrote are cleared: a row qualifies only if its
+// stored weight is exactly the number that routine would have produced from its
+// own dimensions. A genuine weight from an estimator's workbook comes off
+// column J with their waste already in it and cannot equal that, so imported
+// weights are left alone.
+//
+// Skipped entirely on any database where the pinning never ran.
+function unpinLegacyPlateWeights() {
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _data_fixes (name TEXT PRIMARY KEY, applied_at TEXT)");
+    const MARKER = '057_unpin_legacy_plate_weights';
+    if (db.prepare('SELECT 1 FROM _data_fixes WHERE name = ?').get(MARKER)) return;
+    const pinned = db.prepare('SELECT 1 FROM _data_fixes WHERE name = ?').get('056_freeze_legacy_plate_weights');
+    if (!pinned) {
+      db.prepare("INSERT OR IGNORE INTO _data_fixes (name, applied_at) VALUES (?, datetime('now'))").run(MARKER);
+      return;
+    }
+
+    const { legacyPlateUnitWeight } = require('./lib/calc');
+    const rows = db.prepare(
+      'SELECT id, thickness, width_in, length_in, qty, weight_lb FROM takeoff_plates WHERE weight_lb IS NOT NULL AND weight_lb > 0'
+    ).all();
+    const upd = db.prepare('UPDATE takeoff_plates SET weight_lb = 0 WHERE id = ?');
+    let cleared = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const sqft = ((+r.width_in || 0) * (+r.length_in || 0) * (+r.qty || 0)) / 144;
+        const pinnedWeight = sqft * legacyPlateUnitWeight(r.thickness);
+        // Same arithmetic, same order, so a pinned row matches bit for bit.
+        if (pinnedWeight > 0 && Math.abs(+r.weight_lb - pinnedWeight) < 1e-9) {
+          upd.run(r.id);
+          cleared += 1;
+        }
+      }
+      db.prepare("INSERT OR IGNORE INTO _data_fixes (name, applied_at) VALUES (?, datetime('now'))").run(MARKER);
+    });
+    tx();
+    console.log('[db] plate weight unpin: cleared ' + cleared + ' row(s) back to where they were');
+  } catch (err) {
+    console.error('[db] plate weight unpin skipped:', err.message);
+  }
+}
+
+// SUPERSEDED by unpinLegacyPlateWeights above. Kept only so the marker logic
+// reads honestly on databases where it already ran. It is no longer called.
+//
 // One-time: freeze every plate row that already exists at the weight it was
 // quoted at, so no bid that has already gone out to a GC moves.
 //
@@ -261,6 +316,6 @@ normalizeSections();
 seedFirstAdmin();
 seedStandardExclusions();
 reconcileWonLostFamilies();
-freezeLegacyPlateWeights();
+unpinLegacyPlateWeights();
 
 module.exports = db;
