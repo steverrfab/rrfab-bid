@@ -1474,22 +1474,28 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     }
     const drawingNumbers = Array.from(drawingSet).join(', ');
 
-    // Auto-populate weight fields; capture drawing numbers in their own field
-    // (no longer overwrites the user's scope).
-    let bundle = loadFullEstimate(id);
-    const totalWeight = bundle.computed.materialWeight || 0;
-    if (totalWeight > 0) {
-      db.prepare(`
-        UPDATE estimates
-        SET paint_weight = ?, galv_weight = ?, consumables_weight = ?, handling_weight = ?, updated_at = datetime('now')
-        WHERE id = ?
-      `).run(totalWeight, totalWeight, totalWeight, totalWeight, id);
-    }
+    // Finish weights. Paint, consumables and handling are handed back to
+    // automatic (NULL), which means "track the current material weight" -- see
+    // finishWeight in lib/calc.js. They used to be stamped with the
+    // material weight as it stood at the instant of the import, and then never
+    // moved again, so any later takeoff edit left Cost Inputs quietly
+    // disagreeing with the section totals above it.
+    //
+    // Galvanizing is always left at 0. Most jobs are not galvanized, and
+    // defaulting it to the full material weight meant a rate typed in later
+    // priced the entire job by mistake. It is entered by hand when a job
+    // actually needs it.
+    db.prepare(`
+      UPDATE estimates
+      SET paint_weight = NULL, consumables_weight = NULL, handling_weight = NULL,
+          galv_weight = 0, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(id);
     if (drawingNumbers) {
       db.prepare("UPDATE estimates SET drawing_numbers = ?, updated_at = datetime('now') WHERE id = ?").run(drawingNumbers, id);
     }
 
-    bundle = loadFullEstimate(id);
+    const bundle = loadFullEstimate(id);
 
     // Build human-readable notes so nothing is silently lost on import.
     const notes = [];
@@ -1515,6 +1521,15 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
     if (nwKeys.length) {
       notes.push('Need a manual weight (not in the AISC table): ' +
         nwKeys.map(k => noWeight[k] + 'x ' + k).join(', ') + '.');
+    }
+    // Pipe rows whose description named a size but no wall thickness. STD was
+    // used because it is by far the most common, but it changes the weight, so
+    // say so rather than let the assumption ride.
+    const pa = parsed.pipeAssumedWall || {};
+    const paKeys = Object.keys(pa);
+    if (paKeys.length) {
+      notes.push('Pipe wall not stated, read as STD - check these: ' +
+        paKeys.map(k => pa[k] + 'x ' + k).join(', ') + '.');
     }
 
     res.json({ ...bundle, parsed: {
