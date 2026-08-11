@@ -175,6 +175,40 @@ async function run() {
     passed++; console.log('  ok - trailing prose does not truncate the last bent leg');
   }
 
+  // Plate length. Column E is authoritative -- the estimator's own weights are
+  // built from it -- but it is written in feet rounded UP to two decimals, so a
+  // clean 20" plate arrives as 1.67 ft and would land in the grid as 20.04",
+  // a number that appears nowhere on the takeoff. Where the description agrees
+  // to within that rounding, its whole number is used instead.
+  {
+    const lines = [
+      // 20" written as 1.67 ft: 20.04 by arithmetic, should read 20.
+      ['L-1', 'PLATE', 'PL1/4"x20"x20" - Base Plate',   1.67, 1],
+      // 16" written as 1.34 ft (rounded up, not to nearest): 16.08, should read 16.
+      ['L-2', 'PLATE', 'PL3/8"x16"x16" - Gusset Plate', 1.34, 1],
+      // Genuinely different: described 12" but col E says 1.25 ft. Column E wins,
+      // because that is what their weight was priced from.
+      ['L-3', 'PLATE', 'PL1/2"x4-1/2"x12" - Shear Plate', 1.25, 1],
+      // No length in the description at all: column E, decimals and all.
+      ['L-4', 'PLATE', 'PL3/4"X12" - Cont. Plate',      10.34, 1],
+    ];
+    const buf = await buildWorkbook(lines);
+    const parsed = await parseTemplate(buf, 'takeoff.xlsx');
+    const byThick = (t) => parsed.plates.find(p => p.thickness === t);
+
+    approx(byThick('1/4').length_in, 20, 'rounding of 1.67 ft snapped back to 20 in');
+    passed++; console.log('  ok - 1.67 ft reads as 20 in, not 20.04');
+
+    approx(byThick('3/8').length_in, 16, 'rounded-up 1.34 ft snapped back to 16 in');
+    passed++; console.log('  ok - 1.34 ft reads as 16 in, not 16.08');
+
+    approx(byThick('1/2').length_in, 15, 'a real disagreement keeps col E');
+    passed++; console.log('  ok - a genuine disagreement keeps the column E length');
+
+    approx(byThick('3/4').length_in, 124.08, 'continuous plate keeps its measured length');
+    passed++; console.log('  ok - a continuous run keeps its real decimal length');
+  }
+
   console.log('\nAll ' + passed + ' parser tests passed.');
 }
 
