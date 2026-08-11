@@ -999,7 +999,13 @@ router.get('/:id/resubmit-preview', (req, res) => {
 //                       different job and starts with none. (change_order_lines
 //                       hangs off change_orders, not off estimate_id, so it is
 //                       excluded automatically.)
-const CLONE_SKIP_TABLES = new Set(['estimate_locks', 'estimate_resubmits', 'change_orders']);
+//   sov_items           the schedule of values is a post-award document. It gets
+//                       built once a bid is Won, against the contract that was
+//                       actually signed. A clone is an unawarded bid, so it has
+//                       no SOV yet, the same as any other new bid.
+const CLONE_SKIP_TABLES = new Set([
+  'estimate_locks', 'estimate_resubmits', 'change_orders', 'sov_items'
+]);
 
 // Columns never copied verbatim: the child row's own key, the parent pointer
 // (replaced with the new bid's id), and creation timestamps -- the copy was made
@@ -1007,13 +1013,10 @@ const CLONE_SKIP_TABLES = new Set(['estimate_locks', 'estimate_resubmits', 'chan
 // out fills them in correctly.
 const CLONE_SKIP_COLS = new Set(['id', 'estimate_id', 'created_at', 'updated_at']);
 
-// Columns copied as 0 rather than as-is. The schedule of values comes across so
-// the new bid keeps its line items and scheduled values, but billing progress
-// (what has already been invoiced) belongs to the job that was actually billed.
-// A clone has billed nothing.
-const CLONE_ZERO_COLS = {
-  sov_items: new Set(['prev_completed', 'this_period', 'stored_materials'])
-};
+// Columns copied as 0 rather than as-is, keyed by table. Nothing needs this
+// today. It exists for the case of a child table that should come across but
+// carries running totals that belong to the original job rather than the copy.
+const CLONE_ZERO_COLS = {};
 
 // Built once on first clone and reused. The schema does not change while the
 // process is running -- migrations run at startup, before any request.
