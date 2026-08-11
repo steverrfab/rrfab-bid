@@ -202,11 +202,65 @@ function reconcileWonLostFamilies() {
   }
 }
 
+// One-time: freeze every plate row that already exists at the weight it was
+// quoted at, so no bid that has already gone out to a GC moves.
+//
+// Plate thicknesses were stored with the inch mark ('3/8"'), which the weight
+// lookup misread as three INCHES thick instead of three eighths -- eight times
+// heavy. Fixing that lookup was necessary for new work, but it also silently
+// reweighed every bid already in the system, including ones that had been sent.
+//
+// takeoff_plates.weight_lb means "this is the weight that was quoted, use it as
+// it stands". Writing each existing row's OLD computed weight into that column
+// pins those bids to the exact numbers they were sent with, while anything
+// imported from here on uses the corrected weights.
+//
+// This is not a blessing of the old numbers. It is a record of what went out.
+// Editing a row's thickness, width, length or qty clears weight_lb and hands
+// that row back to the corrected calculation, so a bid can be brought up to
+// date deliberately, one row at a time, rather than all at once behind your
+// back.
+//
+// Rows that already carry a weight from the estimator are left alone, and the
+// marker means this runs exactly once no matter how many times the app restarts.
+function freezeLegacyPlateWeights() {
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _data_fixes (name TEXT PRIMARY KEY, applied_at TEXT)");
+    const MARKER = '056_freeze_legacy_plate_weights';
+    if (db.prepare('SELECT 1 FROM _data_fixes WHERE name = ?').get(MARKER)) return;
+
+    const { legacyPlateUnitWeight } = require('./lib/calc');
+    // weight_lb was added with DEFAULT 0, so "no quoted weight" is stored as 0
+    // on every row that predates this, not as NULL. calc treats both the same
+    // way (fall through to the dimensions), so both have to be pinned.
+    const rows = db.prepare(
+      'SELECT id, thickness, width_in, length_in, qty FROM takeoff_plates WHERE weight_lb IS NULL OR weight_lb = 0'
+    ).all();
+    const upd = db.prepare('UPDATE takeoff_plates SET weight_lb = ? WHERE id = ?');
+    let frozen = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const sqft = ((+r.width_in || 0) * (+r.length_in || 0) * (+r.qty || 0)) / 144;
+        const weight = sqft * legacyPlateUnitWeight(r.thickness);
+        // A row that weighed nothing before has nothing to preserve, and pinning
+        // it at 0 would stop it ever calculating.
+        if (weight > 0) { upd.run(weight, r.id); frozen += 1; }
+      }
+      db.prepare("INSERT OR IGNORE INTO _data_fixes (name, applied_at) VALUES (?, datetime('now'))").run(MARKER);
+    });
+    tx();
+    console.log('[db] plate weight freeze: pinned ' + frozen + ' existing plate row(s) at their quoted weight');
+  } catch (err) {
+    console.error('[db] plate weight freeze skipped:', err.message);
+  }
+}
+
 runMigrations();
 seedAisc();
 normalizeSections();
 seedFirstAdmin();
 seedStandardExclusions();
 reconcileWonLostFamilies();
+freezeLegacyPlateWeights();
 
 module.exports = db;
