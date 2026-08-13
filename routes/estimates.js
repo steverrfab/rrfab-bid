@@ -1491,8 +1491,14 @@ router.post('/:id/takeoff/upload', upload.single('file'), async (req, res) => {
           galv_weight = 0, updated_at = datetime('now')
       WHERE id = ?
     `).run(id);
+    // Only seed drawing_numbers from the import when the field is currently
+    // blank. Once the user has typed (or deliberately cleared) it on the Client
+    // Proposal tab, that edit is authoritative and must survive a re-import.
     if (drawingNumbers) {
-      db.prepare("UPDATE estimates SET drawing_numbers = ?, updated_at = datetime('now') WHERE id = ?").run(drawingNumbers, id);
+      const cur = db.prepare("SELECT drawing_numbers FROM estimates WHERE id = ?").get(id);
+      if (!cur || !(cur.drawing_numbers || '').trim()) {
+        db.prepare("UPDATE estimates SET drawing_numbers = ?, updated_at = datetime('now') WHERE id = ?").run(drawingNumbers, id);
+      }
     }
 
     const bundle = loadFullEstimate(id);
