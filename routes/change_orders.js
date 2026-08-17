@@ -51,13 +51,14 @@ function loadParent(estimateId) {
   ).get(estimateId);
 }
 
-// Estimators may only see change orders hanging off their own estimates, or off
-// legacy estimates that have no owner. Admins and superadmins see everything.
+// Estimators may only see change orders hanging off estimates assigned to them.
+// An estimate with no owner is admin-only, same rule as the bids list itself.
+// Admins and superadmins see everything.
 function canReach(user, est) {
   if (!user) return false;
   if (isAdminish(user.role)) return true;
   if (!est) return false;
-  return est.created_by === null || est.created_by === user.userId;
+  return est.created_by === user.userId;
 }
 
 function linesFor(coId) {
@@ -115,7 +116,7 @@ router.get('/targets', (req, res) => {
   ).all();
 
   if (!isAdminish(req.user.role)) {
-    rows = rows.filter(r => r.created_by === null || r.created_by === req.user.userId);
+    rows = rows.filter(r => r.created_by === req.user.userId);
   }
 
   res.json(rows.map(r => ({

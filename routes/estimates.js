@@ -190,8 +190,15 @@ function loadFullEstimate(id, opts = {}) {
 }
 
 // ---- OWNERSHIP CHECK ----
-// For estimators: only allow access to their own estimates (or legacy estimates with no owner).
-// Admins and superadmins bypass this check entirely.
+// For estimators: only allow access to estimates assigned to them. Nothing else,
+// including bids that carry no owner at all. Admins and superadmins bypass this
+// check entirely and are the only ones who can see or assign an unowned bid.
+//
+// This used to let an unowned bid through to everyone, on the theory that old
+// bids predating ownership shouldn't disappear. That made "no owner" behave like
+// "everyone's", so a new estimator started out able to read work that was never
+// theirs. An estimator now sees a bid only when an admin has put their name on
+// it, via the Owner column on the bids list.
 function isAdminish(role) {
   return role === 'admin' || role === 'superadmin';
 }
@@ -204,7 +211,7 @@ function estimateOwnershipCheck(req, res, next) {
   // so an estimator can only view their own deleted bids, not everyone's.
   const est = db.prepare('SELECT created_by FROM estimates WHERE id = ?').get(id);
   if (!est) return next(); // let the route return 404
-  if (est.created_by !== null && est.created_by !== req.user.userId) {
+  if (est.created_by !== req.user.userId) {
     return res.status(403).json({ error: 'Access denied.' });
   }
   next();
@@ -256,14 +263,14 @@ router.get('/', (req, res) => {
     `).all();
     return res.json({ rows: attachAmounts(rows) });
   }
-  // Estimators: only see their own + legacy estimates with no owner
+  // Estimators: only bids assigned to them. An unowned bid is admin-only.
   const rows = db.prepare(`
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date,
            e.status, e.job_type, e.bid_type, e.revised_from_id, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE (e.created_by = ? OR e.created_by IS NULL) AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
+    WHERE e.created_by = ? AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows: attachAmounts(rows) });
@@ -280,7 +287,7 @@ router.get('/deleted', (req, res) => {
     WHERE e.deleted_at IS NOT NULL AND e.is_alternate = 0`;
   const rows = isAdminish(req.user.role)
     ? db.prepare(base + ' ORDER BY e.deleted_at DESC').all()
-    : db.prepare(base + ' AND (e.created_by = ? OR e.created_by IS NULL) ORDER BY e.deleted_at DESC').all(req.user.userId);
+    : db.prepare(base + ' AND e.created_by = ? ORDER BY e.deleted_at DESC').all(req.user.userId);
   res.json({ rows });
 });
 
@@ -294,7 +301,7 @@ router.get('/summary', (req, res) => {
   // treated as 'real' so legacy rows keep counting.
   const idRows = isAdminish(req.user.role)
     ? db.prepare("SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all()
-    : db.prepare("SELECT id FROM estimates WHERE (created_by = ? OR created_by IS NULL) AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
+    : db.prepare("SELECT id FROM estimates WHERE created_by = ? AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
 
   const rows = [];
   for (const { id } of idRows) {
@@ -762,8 +769,8 @@ router.post('/:id/restore', (req, res) => {
   const id = Number(req.params.id);
   const est = db.prepare('SELECT id, created_by, deleted_at FROM estimates WHERE id = ?').get(id);
   if (!est || !est.deleted_at) return res.status(404).json({ error: 'not found' });
-  // Non-admins may only restore their own (or legacy ownerless) bids.
-  if (!isAdminish(req.user.role) && est.created_by !== null && est.created_by !== req.user.userId) {
+  // Non-admins may only restore bids assigned to them.
+  if (!isAdminish(req.user.role) && est.created_by !== req.user.userId) {
     return res.status(403).json({ error: 'Access denied.' });
   }
   db.prepare("UPDATE estimates SET deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
@@ -778,7 +785,7 @@ router.post('/:id/mark-counted', (req, res) => {
   const id = Number(req.params.id);
   const est = db.prepare('SELECT id, bid_number, created_by FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
-  if (!isAdminish(req.user.role) && est.created_by !== null && est.created_by !== req.user.userId) {
+  if (!isAdminish(req.user.role) && est.created_by !== req.user.userId) {
     return res.status(403).json({ error: 'Access denied.' });
   }
   const base = String(est.bid_number || '').split('.')[0];
