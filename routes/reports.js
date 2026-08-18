@@ -127,10 +127,15 @@ function buildReport(all, from, to) {
   // the same period counts under Won, not both. That is the dashboard's rule.
   const created   = all.filter(r => (r.status || 'Draft') !== 'Lost' && inRange(r.created_at, from, to));
   const submitted = all.filter(r => r.status === 'Submitted' && inRange(r.submitted_at, from, to));
+  // "Bid out" answers a different question to the dashboard's Submitted card:
+  // everything that WENT OUT in this period, whatever became of it since. The
+  // dashboard card is a pipeline number (what is still open); this is activity.
+  // Both are real, they are just not the same thing, so they get separate names.
+  const bidOut   = all.filter(r => inRange(r.submitted_at, from, to));
   const won       = all.filter(r => r.status === 'Won'  && inRange(r.won_at, from, to));
   const lost      = all.filter(r => r.status === 'Lost' && inRange(lostDate(r), from, to));
 
-  const touchedIds = new Set([...created, ...submitted, ...won, ...lost].map(r => r.id));
+  const touchedIds = new Set([...created, ...bidOut, ...submitted, ...won, ...lost].map(r => r.id));
   const detail = all
     .filter(r => touchedIds.has(r.id))
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -149,12 +154,14 @@ function buildReport(all, from, to) {
     bids_won: won.length,
     bids_lost: lost.length,
     win_rate: decided > 0 ? won.length / decided : null,   // null = nothing decided yet
+    bids_bid_out: bidOut.length,
+    value_bid_out: sum(bidOut, 'revenue'),
     value_submitted: sum(submitted, 'revenue'),
     value_won: wonValue,
     value_lost: sum(lost, 'revenue'),
     profit_won: sum(won, 'profit'),
     margin_won: wonValue > 0 ? sum(won, 'profit') / wonValue : null,
-    avg_bid_size: submitted.length ? money(sum(submitted, 'revenue') / submitted.length) : 0,
+    avg_bid_size: bidOut.length ? money(sum(bidOut, 'revenue') / bidOut.length) : 0,
     open_pipeline_count: openRows.length,
     open_pipeline_value: sum(openRows, 'revenue')
   };
@@ -329,7 +336,9 @@ router.get('/bids.xlsx', async (req, res) => {
       ['Win rate (of decided)', m.win_rate, PCT]
     ]);
     block('Dollar volume', [
-      ['Value submitted', m.value_submitted, MONEY],
+      ['Value bid out', m.value_bid_out, MONEY],
+      ['Bids bid out', m.bids_bid_out],
+      ['Value still open', m.value_submitted, MONEY],
       ['Value won', m.value_won, MONEY],
       ['Value lost', m.value_lost, MONEY],
       ['Average bid size', m.avg_bid_size, MONEY],
