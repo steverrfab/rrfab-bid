@@ -40,6 +40,47 @@ function parseRange(query) {
   return { from, to };
 }
 
+// Narrowing filters, all optional. These are applied BEFORE the period logic,
+// so every number on the page (and in the workbook) reflects them: filter to one
+// GC and the win rate is that GC's win rate, not the company's.
+function parseFilters(query) {
+  const s = (v) => String(v || '').trim();
+  return {
+    status: s(query.status),       // Draft | Submitted | Won | Lost
+    customer: s(query.customer),   // exact client_gc, or '(no customer)'
+    owner: s(query.owner),         // exact owner_name
+    q: s(query.q).toLowerCase()    // substring of project / bid # / job #
+  };
+}
+
+function applyFilters(rows, f) {
+  return rows.filter(r => {
+    if (f.status && (r.status || 'Draft') !== f.status) return false;
+    if (f.customer) {
+      const c = (r.client_gc || '').trim() || '(no customer)';
+      if (c !== f.customer) return false;
+    }
+    if (f.owner && (r.owner_name || '') !== f.owner) return false;
+    if (f.q) {
+      const hay = [r.project_name, r.bid_number, r.job_number, r.client_gc]
+        .map(v => String(v || '').toLowerCase()).join(' ');
+      if (!hay.includes(f.q)) return false;
+    }
+    return true;
+  });
+}
+
+// Dropdown options come from the UNFILTERED set, so picking a customer does not
+// empty out the other dropdowns and strand you with no way back.
+function buildFacets(all) {
+  const uniq = (vals) => [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  return {
+    statuses: uniq(all.map(r => r.status || 'Draft')),
+    customers: uniq(all.map(r => (r.client_gc || '').trim() || '(no customer)')),
+    owners: uniq(all.map(r => r.owner_name))
+  };
+}
+
 // Loads every visible bid and computes its financials.
 //
 // This is one loadFullEstimate() call per bid, the same cost the dashboard
@@ -159,6 +200,7 @@ function buildReport(all, from, to) {
       client_gc: r.client_gc,
       owner_name: r.owner_name,
       status: r.status,
+      job_type_label: r.job_type === 'process_only' ? 'Process' : 'Full',
       job_type: r.job_type,
       bid_date: dayOf(r.bid_date),
       due_date: dayOf(r.due_date),
@@ -176,10 +218,19 @@ function buildReport(all, from, to) {
   };
 }
 
-// ---- JSON (powers the on-screen preview cards) ----
+// One place that turns a querystring into a finished report, so the JSON page
+// and the Excel download can never show different numbers for the same filters.
+function runReport(query) {
+  const { from, to } = parseRange(query);
+  const filters = parseFilters(query);
+  const all = loadRows();
+  const rep = buildReport(applyFilters(all, filters), from, to);
+  return { ...rep, facets: buildFacets(all), filters: { ...filters, from, to } };
+}
+
+// ---- JSON (powers the on-screen cards and tables) ----
 router.get('/bids.json', (req, res) => {
-  const { from, to } = parseRange(req.query);
-  res.json(buildReport(loadRows(), from, to));
+  res.json(runReport(req.query));
 });
 
 // ---- Excel download ----
@@ -219,7 +270,8 @@ function formatCols(ws, firstDataRow, cols, fmt) {
 router.get('/bids.xlsx', async (req, res) => {
   const { from, to } = parseRange(req.query);
   try {
-    const rep = buildReport(loadRows(), from, to);
+    const rep = runReport(req.query);
+    const f = rep.filters;
     const ExcelJS = require('exceljs');
     const wb = new ExcelJS.Workbook();
     wb.creator = 'R&R Bid';
@@ -236,6 +288,12 @@ router.get('/bids.xlsx', async (req, res) => {
     title.font = { bold: true, size: 14 };
     s.addRow(['Period', label]);
     s.addRow(['Generated', new Date().toLocaleString()]);
+    // Print whatever the screen was filtered to, so a saved workbook is always
+    // self-explanatory and nobody argues about why two exports disagree.
+    if (f.status)   s.addRow(['Status filter', f.status]);
+    if (f.customer) s.addRow(['Customer filter', f.customer]);
+    if (f.owner)    s.addRow(['Estimator filter', f.owner]);
+    if (f.q)        s.addRow(['Search', f.q]);
     s.addRow([]);
 
     const m = rep.summary;
