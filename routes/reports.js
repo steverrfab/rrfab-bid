@@ -101,18 +101,32 @@ const money = (n) => Math.round((+n || 0) * 100) / 100;
 const sum = (rows, key) => money(rows.reduce((t, r) => t + (+r[key] || 0), 0));
 
 // A bid is "lost" on... nothing. There is no lost_at column, so a Lost bid is
-// dated by when it went out (submitted_at, falling back to bid_date/created_at).
-// That is the honest approximation; add a lost_at stamp if you ever want the
-// real decision date.
+// dated by its bid date (the decision date), falling back to created.
+//
+// This deliberately mirrors Dashboard.jsx exactly. An earlier version here used
+// submitted_at first, which quietly produced a different Lost count than the
+// dashboard card for the same period. Do not "improve" this in isolation: if
+// the rule changes it changes in both places, or the two screens start
+// disagreeing about the same bids.
 function lostDate(r) {
-  return r.submitted_at || r.bid_date || r.created_at;
+  return r.bid_date || r.created_at;
 }
 
 function buildReport(all, from, to) {
-  // Activity in the window: anything created, submitted, won or lost in it.
-  // A bid can legitimately hit more than one of these in the same period.
-  const created   = all.filter(r => inRange(r.created_at, from, to));
-  const submitted = all.filter(r => inRange(r.submitted_at, from, to));
+  // Activity in the window. These four rules mirror the dashboard cards in
+  // Dashboard.jsx line for line, because the whole point of this page is that
+  // it agrees with the dashboard. Each bucket filters on its OWN date, and a
+  // bid can legitimately land in more than one.
+  //
+  //   Created   = every bid not Lost, by created date  (dashboard "Estimated")
+  //   Submitted = bids CURRENTLY in Submitted status, by submitted date
+  //   Won       = bids currently Won, by win date
+  //   Lost      = bids currently Lost, by bid date then created date
+  //
+  // Note Submitted keys off current status, so a bid submitted and then won in
+  // the same period counts under Won, not both. That is the dashboard's rule.
+  const created   = all.filter(r => (r.status || 'Draft') !== 'Lost' && inRange(r.created_at, from, to));
+  const submitted = all.filter(r => r.status === 'Submitted' && inRange(r.submitted_at, from, to));
   const won       = all.filter(r => r.status === 'Won'  && inRange(r.won_at, from, to));
   const lost      = all.filter(r => r.status === 'Lost' && inRange(lostDate(r), from, to));
 
