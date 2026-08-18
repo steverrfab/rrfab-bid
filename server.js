@@ -54,6 +54,8 @@ app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
 app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
 app.use('/api/change-orders', require('./routes/change_orders'));
+// Reports — company-wide bid activity and dollar volume. Admin and superadmin only.
+app.use('/api/reports', requireAdmin, require('./routes/reports'));
 
 // ---- Root ----
 app.get('/', (req, res) => {

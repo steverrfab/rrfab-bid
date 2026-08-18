@@ -13,6 +13,7 @@ const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendResubmitNotification, sendWonNotification } = require('../lib/email');
 const { buildWonJobPayload, pushWonJobToTracker } = require('../lib/tracker_push');
 const { buildSnapshot, diffSnapshots } = require('../lib/resubmit_diff');
+const { summaryRow } = require('../lib/report_data');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -303,49 +304,13 @@ router.get('/summary', (req, res) => {
     ? db.prepare("SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all()
     : db.prepare("SELECT id FROM estimates WHERE created_by = ? AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
 
+  // Per-bid revenue/profit lives in lib/report_data.js so the dashboard and the
+  // Excel reports (/api/reports) can never drift apart. Numbers are unchanged.
   const rows = [];
   for (const { id } of idRows) {
     const bundle = loadFullEstimate(id);
     if (!bundle) continue;
-    const e = bundle.estimate;
-    const c = bundle.computed || {};
-    const isPO = e.job_type === 'process_only';
-    const pc = bundle.processComputed || {};
-    // Price to win is the ONLY thing that adjusts dashboard revenue/profit.
-    // When it is blank, these are byte-for-byte the old cost-plus numbers, so
-    // no existing bid moves (hide/exclude do not affect the dashboard).
-    const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
-    let revenue, profit;
-    if (isPO) {
-      // Sell price BEFORE sales tax, matching how full-project bids are counted
-      // (c.totalBid is pre-tax). Sales tax is a pass-through, so it must not
-      // land in revenue or profit. price_to_win, when set, is the pre-tax sell.
-      const poPreTax = (+pc.subTotal || 0) + (+pc.opAmt || 0);
-      revenue = ptw != null ? ptw : poPreTax;
-      profit  = revenue - (+pc.yourCost || 0);
-    } else {
-      // Profit uses REAL burdened cost (labor at loaded wage rates), matching the
-      // proposal builder and the Margin Analysis / Client Proposal tabs, not the
-      // old bid-rate estimate cost (c.directCost). Revenue behavior is unchanged
-      // (price-to-win when set, else the computed bid; hide/exclude still ignored).
-      const view = buildProposalView(bundle);
-      revenue = ptw != null ? ptw : (+c.totalBid || 0);
-      profit  = revenue - (+view.base.directCost || 0);
-    }
-    rows.push({
-      id: e.id,
-      project_name: e.project_name || '',
-      bid_number: e.bid_number || '',
-      job_type: e.job_type || 'full',
-      status: e.status || 'Draft',
-      created_at: e.created_at || null,
-      submitted_at: e.submitted_at || null,
-      won_at: e.won_at || null,
-      proposal_date: e.proposal_date || null,
-      bid_date: e.bid_date || null,
-      revenue,
-      profit
-    });
+    rows.push(summaryRow(bundle));
   }
   res.json({ rows });
 });
