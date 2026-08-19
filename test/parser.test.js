@@ -239,6 +239,33 @@ async function run() {
     passed++; console.log('  ok - a stated "6\\" Wide" beats the summed legs');
   }
 
+  // Plate rows roll up by part, not by dimensions alone. A gusset plate and a
+  // stiffener plate can be the same piece of steel and still be two lines on the
+  // takeoff; merging them makes the grid stop matching the document, and loses
+  // one of the two names because a group only keeps the first description.
+  {
+    const lines = [
+      ['G-1', 'PLATE', 'PL3/8"x3"x18" - Stiffener Plate', 1.5, 10],
+      ['G-2', 'PLATE', 'PL3/8"x3"x18" - Gusset Plate',    1.5, 9],
+      // The same part again, spelled with different case: rolls up, 4 + 2 = 6.
+      ['G-3', 'PLATE', 'PL1/2"X6"x8" - Cap Plate',        0.67, 4],
+      ['G-4', 'PLATE', 'PL1/2"x6"X8" - Cap Plate',        0.67, 2],
+    ];
+    const buf = await buildWorkbook(lines);
+    const parsed = await parseTemplate(buf, 'takeoff.xlsx');
+
+    const eighteens = parsed.plates.filter(p => Math.abs(p.length_in - 18) < 1e-6);
+    assert.strictEqual(eighteens.length, 2, 'stiffener and gusset stayed two rows');
+    assert.ok(eighteens.some(p => /Stiffener/i.test(p.notes)), 'stiffener kept its name');
+    assert.ok(eighteens.some(p => /Gusset/i.test(p.notes)), 'gusset kept its name');
+    passed++; console.log('  ok - same size, different part name, stays two rows');
+
+    const caps = parsed.plates.filter(p => /Cap Plate/i.test(p.notes));
+    assert.strictEqual(caps.length, 1, 'the same part rolled up despite the spelling');
+    assert.strictEqual(caps[0].qty, 6, 'and summed its quantity: 4 + 2');
+    passed++; console.log('  ok - the same part rolls up regardless of case');
+  }
+
   console.log('\nAll ' + passed + ' parser tests passed.');
 }
 
