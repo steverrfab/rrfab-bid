@@ -103,7 +103,9 @@ async function run() {
   // ---- Plate dimension parsing + roll-up ----
   {
     const lines = [
-      // Straight plate: thickness 1/2, width 4-1/2; length from col E (2 ft -> 24 in).
+      // Straight plate: thickness 1/2, width 4-1/2, length 15 in from the
+      // description. Column E (2 ft) is the estimator's own rounded working
+      // figure and is only the fallback now.
       ['P-1', 'PLATE', 'PL 1/2 x 4-1/2 x 15', 2, 3, 999],
       // Identical plate again -> rolls up, qty sums to 5.
       ['P-2', 'PLATE', 'PL 1/2 x 4-1/2 x 15', 2, 2, 999],
@@ -118,9 +120,9 @@ async function run() {
     const straight = parsed.plates.find(p => p.thickness === '1/2');
     assert.ok(straight, 'straight plate parsed');
     approx(straight.width_in, 4.5, 'width 4-1/2 in');
-    approx(straight.length_in, 24, 'length_in = col E(2 ft) x 12');
+    approx(straight.length_in, 15, 'length_in = the 15 in named in the description');
     assert.strictEqual(straight.qty, 5, 'identical plates rolled up: 3 + 2');
-    passed++; console.log('  ok - plate thickness/width parsed, length from col E, identical plates roll up');
+    passed++; console.log('  ok - plate thickness/width/length parsed, identical plates roll up');
 
     const bent = parsed.plates.find(p => p.thickness === '1/4');
     assert.ok(bent, 'bent plate parsed');
@@ -175,38 +177,66 @@ async function run() {
     passed++; console.log('  ok - trailing prose does not truncate the last bent leg');
   }
 
-  // Plate length. Column E is authoritative -- the estimator's own weights are
-  // built from it -- but it is written in feet rounded UP to two decimals, so a
-  // clean 20" plate arrives as 1.67 ft and would land in the grid as 20.04",
-  // a number that appears nowhere on the takeoff. Where the description agrees
-  // to within that rounding, its whole number is used instead.
+  // Plate length comes from the description whenever it gives one. Column E
+  // holds the same length in FEET rounded up to two decimals, which is what the
+  // estimator calculates from but is not the size of the plate: a 10" cap plate
+  // is written 0.84 ft and comes back out as 10.08". Column E is also sometimes
+  // simply wrong, and because the grid groups on thickness/width/length, a wrong
+  // length silently merges plates that are not the same plate.
   {
     const lines = [
-      // 20" written as 1.67 ft: 20.04 by arithmetic, should read 20.
-      ['L-1', 'PLATE', 'PL1/4"x20"x20" - Base Plate',   1.67, 1],
-      // 16" written as 1.34 ft (rounded up, not to nearest): 16.08, should read 16.
-      ['L-2', 'PLATE', 'PL3/8"x16"x16" - Gusset Plate', 1.34, 1],
-      // Genuinely different: described 12" but col E says 1.25 ft. Column E wins,
-      // because that is what their weight was priced from.
-      ['L-3', 'PLATE', 'PL1/2"x4-1/2"x12" - Shear Plate', 1.25, 1],
+      // 20" written as 1.67 ft: reads 20, not 20.04.
+      ['L-1', 'PLATE', 'PL1/4"x20"x20" - Base Plate',      1.67, 1],
+      // 10" written as 0.84 ft (rounded up, not to nearest): reads 10.
+      ['L-2', 'PLATE', 'PL3/8"x10"x10" - Cap Plate',       0.84, 1],
+      // Four different shear plates that all carry 1.25 ft in column E. They
+      // must stay four rows at their described lengths, not collapse into one.
+      ['L-3', 'PLATE', 'PL1/2"x4-1/2"x12" - Shear Plate',  1.25, 13],
+      ['L-4', 'PLATE', 'PL1/2"x4-1/2"x18" - Shear Plate',  1.25, 4],
+      ['L-5', 'PLATE', 'PL1/2"x4-1/2"x21" - Shear Plate',  1.25, 2],
       // No length in the description at all: column E, decimals and all.
-      ['L-4', 'PLATE', 'PL3/4"X12" - Cont. Plate',      10.34, 1],
+      ['L-6', 'PLATE', 'PL3/4"X12" - Cont. Plate',        10.34, 1],
     ];
     const buf = await buildWorkbook(lines);
     const parsed = await parseTemplate(buf, 'takeoff.xlsx');
-    const byThick = (t) => parsed.plates.find(p => p.thickness === t);
+    const at = (th, len) => parsed.plates.find(p => p.thickness === th && Math.abs(p.length_in - len) < 1e-6);
 
-    approx(byThick('1/4').length_in, 20, 'rounding of 1.67 ft snapped back to 20 in');
+    assert.ok(at('1/4', 20), 'a 20 in plate written as 1.67 ft reads 20, not 20.04');
     passed++; console.log('  ok - 1.67 ft reads as 20 in, not 20.04');
 
-    approx(byThick('3/8').length_in, 16, 'rounded-up 1.34 ft snapped back to 16 in');
-    passed++; console.log('  ok - 1.34 ft reads as 16 in, not 16.08');
+    assert.ok(at('3/8', 10), 'a 10 in plate written as 0.84 ft reads 10, not 10.08');
+    passed++; console.log('  ok - 0.84 ft reads as 10 in, not 10.08');
 
-    approx(byThick('1/2').length_in, 15, 'a real disagreement keeps col E');
-    passed++; console.log('  ok - a genuine disagreement keeps the column E length');
+    const shear = parsed.plates.filter(p => p.thickness === '1/2');
+    assert.strictEqual(shear.length, 3, 'three shear plates stayed three rows');
+    for (const [len, qty] of [[12, 13], [18, 4], [21, 2]]) {
+      const row = at('1/2', len);
+      assert.ok(row, 'shear plate at ' + len + ' in kept its own row');
+      assert.strictEqual(row.qty, qty, 'and its own quantity');
+    }
+    passed++; console.log('  ok - plates sharing a col E length do not merge into one');
 
-    approx(byThick('3/4').length_in, 124.08, 'continuous plate keeps its measured length');
+    approx(at('3/4', 124.08).length_in, 124.08, 'continuous plate keeps its measured length');
     passed++; console.log('  ok - a continuous run keeps its real decimal length');
+  }
+
+  // A bent plate's developed width is the legs added up, except where the
+  // description states the width in words, which is a deliberate statement and
+  // beats adding the dimensions up. Verified against the estimator's own weight:
+  // "PL3/8"x3"x8" - 6" Wide Bent Plate" prices at 6 in, not 11.
+  {
+    const lines = [
+      ['B-1', 'PLATE', 'PL3/8"X6"X14" - Cont. Bent Plate',  36.25, 1],
+      ['B-2', 'PLATE', 'PL1/4"x3"x8" - 6" Wide Bent Plate',  0.92, 6],
+    ];
+    const buf = await buildWorkbook(lines);
+    const parsed = await parseTemplate(buf, 'takeoff.xlsx');
+
+    approx(parsed.plates.find(p => p.thickness === '3/8').width_in, 20, 'legs summed: 6 + 14');
+    passed++; console.log('  ok - bent plate width is the legs summed');
+
+    approx(parsed.plates.find(p => p.thickness === '1/4').width_in, 6, 'stated width wins over 3 + 8');
+    passed++; console.log('  ok - a stated "6\\" Wide" beats the summed legs');
   }
 
   console.log('\nAll ' + passed + ' parser tests passed.');
