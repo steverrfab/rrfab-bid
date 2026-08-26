@@ -34,9 +34,20 @@ async function run(){
   const tables = r2.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='table'").get().n;
   t('restored copy has the full schema', tables > 15, tables);
 
-  // No temp files left lying around.
+  // No temp files left lying around. The server deletes the snapshot when the
+  // response closes, which happens just after the client finishes reading, so
+  // give it a moment rather than racing it.
+  await new Promise(r => setTimeout(r, 400));
   const leftover = fsx.readdirSync(os.tmpdir()).filter(f=>f.startsWith('rrbid-backup-'));
   t('temp snapshot cleaned up', leftover.length===0, leftover);
+
+  // An abandoned download must not strand a snapshot either.
+  const ac = new AbortController();
+  fetch(B+'/db',{headers:{'X-Integration-Key':process.env.BACKUP_KEY},signal:ac.signal}).catch(()=>{});
+  setTimeout(()=>ac.abort(), 20);
+  await new Promise(r => setTimeout(r, 700));
+  const afterAbort = fsx.readdirSync(os.tmpdir()).filter(f=>f.startsWith('rrbid-backup-'));
+  t('aborted download cleaned up too', afterAbort.length===0, afterAbort);
 
   console.log('\n' + (fail? 'FAILURES: '+fail : 'ALL '+pass+' CHECKS PASSED'));
   srv.close(); process.exit(fail?1:0);

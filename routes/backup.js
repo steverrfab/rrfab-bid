@@ -27,6 +27,24 @@ const os = require('os');
 const router = express.Router();
 const db = require('../db');
 
+// The per-request cleanup below handles a finished download and an abandoned
+// one alike. What it cannot handle is the process being killed mid-snapshot,
+// which on Railway happens on every redeploy. Sweep anything left behind by a
+// previous life at startup so stale snapshots can never accumulate.
+(function sweepStaleSnapshots() {
+  try {
+    const dir = os.tmpdir();
+    let removed = 0;
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.startsWith('rrbid-backup-')) continue;
+      try { fs.unlinkSync(path.join(dir, f)); removed++; } catch { /* in use, leave it */ }
+    }
+    if (removed) console.log('[backup] swept ' + removed + ' stale snapshot(s) from a previous run');
+  } catch (err) {
+    console.error('[backup] stale snapshot sweep skipped:', err.message);
+  }
+})();
+
 function keyOk(req) {
   const expected = process.env.BACKUP_KEY || '';
   const provided = req.get('X-Integration-Key') || '';
