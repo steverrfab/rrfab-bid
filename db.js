@@ -310,6 +310,101 @@ function freezeLegacyPlateWeights() {
   }
 }
 
+// Migration 056, second half. A change order no longer has to be attached to a
+// bid, so change_orders.estimate_id must be nullable. SQLite has no
+// "ALTER COLUMN DROP NOT NULL", so the table has to be rebuilt. This lives here
+// rather than in the .sql file because db.js re-runs every migration on every
+// startup and a rebuild written in SQL would therefore rebuild the table on
+// every deploy. Guarded on the real schema: once estimate_id is nullable this
+// is a no-op forever, no marker table needed.
+function relaxChangeOrderParent() {
+  try {
+    const cols = db.prepare('PRAGMA table_info(change_orders)').all();
+    if (!cols.length) return;                      // table not created yet
+    const parent = cols.find(c => c.name === 'estimate_id');
+    if (!parent || parent.notnull === 0) return;   // already nullable, nothing to do
+
+    // Copy by name so this survives any future column added ahead of the rebuild.
+    const names = cols.map(c => c.name);
+    const cols_sql = names.map(n => '"' + n + '"').join(', ');
+
+    // Keep a verbatim copy of the table as it stood before the rebuild. The
+    // Railway plan this runs on allows no volume backups at all, so this is the
+    // only safety net there is: if the rebuild ever goes wrong, every original
+    // row is still sitting in change_orders_pre056 to be read back by hand.
+    // Costs nothing to leave in place — the table is small — and it is created
+    // only on the one startup that actually rebuilds.
+    db.exec('DROP TABLE IF EXISTS change_orders_pre056');
+    db.exec('CREATE TABLE change_orders_pre056 AS SELECT * FROM change_orders');
+    const saved = db.prepare('SELECT COUNT(*) AS n FROM change_orders_pre056').get().n;
+    const live = db.prepare('SELECT COUNT(*) AS n FROM change_orders').get().n;
+    if (saved !== live) throw new Error('pre-056 safety copy is short: ' + saved + ' of ' + live);
+    console.log('[db] change_orders_pre056 safety copy written: ' + saved + ' row(s)');
+
+    // foreign_keys must be toggled OUTSIDE a transaction; SQLite ignores the
+    // pragma inside one. change_order_lines points at change_orders, so the
+    // drop-and-rename needs enforcement off for the moment it is in flight.
+    db.exec('PRAGMA foreign_keys = OFF');
+    const tx = db.transaction(() => {
+      db.exec(`CREATE TABLE change_orders_rebuild (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        estimate_id INTEGER REFERENCES estimates(id),
+        parent_type TEXT NOT NULL DEFAULT 'standalone',
+        project_name TEXT NOT NULL DEFAULT '',
+        client_gc TEXT NOT NULL DEFAULT '',
+        seq INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        requested_by TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT '',
+        pricing_mode TEXT NOT NULL DEFAULT 'quick',
+        status TEXT NOT NULL DEFAULT 'Draft',
+        oh_rate REAL DEFAULT 0.05,
+        contingency_rate REAL DEFAULT 0,
+        profit_rate REAL DEFAULT 0.10,
+        cgl_rate REAL DEFAULT 0,
+        sales_tax_rate REAL DEFAULT 0.06,
+        tax_mode TEXT DEFAULT 'full',
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        deleted_at TEXT
+      )`);
+      db.exec('INSERT INTO change_orders_rebuild (' + cols_sql + ') SELECT ' + cols_sql + ' FROM change_orders');
+      db.exec('DROP TABLE change_orders');
+      db.exec('ALTER TABLE change_orders_rebuild RENAME TO change_orders');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_estimate ON change_orders(estimate_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_status ON change_orders(status)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_standalone ON change_orders(seq) WHERE estimate_id IS NULL');
+    });
+    tx();
+    db.exec('PRAGMA foreign_keys = ON');
+    const n = db.prepare('SELECT COUNT(*) AS n FROM change_orders').get().n;
+    // Count and, more importantly, the identifying fields must match the copy
+    // taken a moment ago. A silent short-copy is the failure worth catching.
+    const drift = db.prepare(
+      `SELECT COUNT(*) AS n FROM change_orders_pre056 p
+        WHERE NOT EXISTS (
+          SELECT 1 FROM change_orders c
+           WHERE c.id = p.id AND c.seq = p.seq
+             AND IFNULL(c.estimate_id, -1) = IFNULL(p.estimate_id, -1)
+             AND c.title = p.title AND c.status = p.status
+             AND IFNULL(c.profit_rate, -1) = IFNULL(p.profit_rate, -1))`
+    ).get().n;
+    if (n !== saved || drift > 0) {
+      console.error('[db] WARNING: change_orders rebuild does not match the pre-056 copy'
+        + ' (' + n + ' vs ' + saved + ' rows, ' + drift + ' row(s) changed).'
+        + ' The originals are intact in change_orders_pre056.');
+    } else {
+      console.log('[db] change_orders.estimate_id relaxed to nullable; '
+        + n + ' row(s) preserved, verified against change_orders_pre056');
+    }
+  } catch (err) {
+    db.exec('PRAGMA foreign_keys = ON');
+    console.error('[db] change_orders parent relax skipped:', err.message);
+  }
+}
+
 runMigrations();
 seedAisc();
 normalizeSections();
@@ -317,5 +412,6 @@ seedFirstAdmin();
 seedStandardExclusions();
 reconcileWonLostFamilies();
 unpinLegacyPlateWeights();
+relaxChangeOrderParent();
 
 module.exports = db;
