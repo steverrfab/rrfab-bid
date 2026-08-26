@@ -328,6 +328,19 @@ function relaxChangeOrderParent() {
     const names = cols.map(c => c.name);
     const cols_sql = names.map(n => '"' + n + '"').join(', ');
 
+    // Keep a verbatim copy of the table as it stood before the rebuild. The
+    // Railway plan this runs on allows no volume backups at all, so this is the
+    // only safety net there is: if the rebuild ever goes wrong, every original
+    // row is still sitting in change_orders_pre056 to be read back by hand.
+    // Costs nothing to leave in place — the table is small — and it is created
+    // only on the one startup that actually rebuilds.
+    db.exec('DROP TABLE IF EXISTS change_orders_pre056');
+    db.exec('CREATE TABLE change_orders_pre056 AS SELECT * FROM change_orders');
+    const saved = db.prepare('SELECT COUNT(*) AS n FROM change_orders_pre056').get().n;
+    const live = db.prepare('SELECT COUNT(*) AS n FROM change_orders').get().n;
+    if (saved !== live) throw new Error('pre-056 safety copy is short: ' + saved + ' of ' + live);
+    console.log('[db] change_orders_pre056 safety copy written: ' + saved + ' row(s)');
+
     // foreign_keys must be toggled OUTSIDE a transaction; SQLite ignores the
     // pragma inside one. change_order_lines points at change_orders, so the
     // drop-and-rename needs enforcement off for the moment it is in flight.
@@ -367,7 +380,25 @@ function relaxChangeOrderParent() {
     tx();
     db.exec('PRAGMA foreign_keys = ON');
     const n = db.prepare('SELECT COUNT(*) AS n FROM change_orders').get().n;
-    console.log('[db] change_orders.estimate_id relaxed to nullable; ' + n + ' row(s) preserved');
+    // Count and, more importantly, the identifying fields must match the copy
+    // taken a moment ago. A silent short-copy is the failure worth catching.
+    const drift = db.prepare(
+      `SELECT COUNT(*) AS n FROM change_orders_pre056 p
+        WHERE NOT EXISTS (
+          SELECT 1 FROM change_orders c
+           WHERE c.id = p.id AND c.seq = p.seq
+             AND IFNULL(c.estimate_id, -1) = IFNULL(p.estimate_id, -1)
+             AND c.title = p.title AND c.status = p.status
+             AND IFNULL(c.profit_rate, -1) = IFNULL(p.profit_rate, -1))`
+    ).get().n;
+    if (n !== saved || drift > 0) {
+      console.error('[db] WARNING: change_orders rebuild does not match the pre-056 copy'
+        + ' (' + n + ' vs ' + saved + ' rows, ' + drift + ' row(s) changed).'
+        + ' The originals are intact in change_orders_pre056.');
+    } else {
+      console.log('[db] change_orders.estimate_id relaxed to nullable; '
+        + n + ' row(s) preserved, verified against change_orders_pre056');
+    }
   } catch (err) {
     db.exec('PRAGMA foreign_keys = ON');
     console.error('[db] change_orders parent relax skipped:', err.message);
