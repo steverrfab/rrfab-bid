@@ -310,6 +310,70 @@ function freezeLegacyPlateWeights() {
   }
 }
 
+// Migration 056, second half. A change order no longer has to be attached to a
+// bid, so change_orders.estimate_id must be nullable. SQLite has no
+// "ALTER COLUMN DROP NOT NULL", so the table has to be rebuilt. This lives here
+// rather than in the .sql file because db.js re-runs every migration on every
+// startup and a rebuild written in SQL would therefore rebuild the table on
+// every deploy. Guarded on the real schema: once estimate_id is nullable this
+// is a no-op forever, no marker table needed.
+function relaxChangeOrderParent() {
+  try {
+    const cols = db.prepare('PRAGMA table_info(change_orders)').all();
+    if (!cols.length) return;                      // table not created yet
+    const parent = cols.find(c => c.name === 'estimate_id');
+    if (!parent || parent.notnull === 0) return;   // already nullable, nothing to do
+
+    // Copy by name so this survives any future column added ahead of the rebuild.
+    const names = cols.map(c => c.name);
+    const cols_sql = names.map(n => '"' + n + '"').join(', ');
+
+    // foreign_keys must be toggled OUTSIDE a transaction; SQLite ignores the
+    // pragma inside one. change_order_lines points at change_orders, so the
+    // drop-and-rename needs enforcement off for the moment it is in flight.
+    db.exec('PRAGMA foreign_keys = OFF');
+    const tx = db.transaction(() => {
+      db.exec(`CREATE TABLE change_orders_rebuild (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        estimate_id INTEGER REFERENCES estimates(id),
+        parent_type TEXT NOT NULL DEFAULT 'standalone',
+        project_name TEXT NOT NULL DEFAULT '',
+        client_gc TEXT NOT NULL DEFAULT '',
+        seq INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        requested_by TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT '',
+        pricing_mode TEXT NOT NULL DEFAULT 'quick',
+        status TEXT NOT NULL DEFAULT 'Draft',
+        oh_rate REAL DEFAULT 0.05,
+        contingency_rate REAL DEFAULT 0,
+        profit_rate REAL DEFAULT 0.10,
+        cgl_rate REAL DEFAULT 0,
+        sales_tax_rate REAL DEFAULT 0.06,
+        tax_mode TEXT DEFAULT 'full',
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        deleted_at TEXT
+      )`);
+      db.exec('INSERT INTO change_orders_rebuild (' + cols_sql + ') SELECT ' + cols_sql + ' FROM change_orders');
+      db.exec('DROP TABLE change_orders');
+      db.exec('ALTER TABLE change_orders_rebuild RENAME TO change_orders');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_estimate ON change_orders(estimate_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_status ON change_orders(status)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_change_orders_standalone ON change_orders(seq) WHERE estimate_id IS NULL');
+    });
+    tx();
+    db.exec('PRAGMA foreign_keys = ON');
+    const n = db.prepare('SELECT COUNT(*) AS n FROM change_orders').get().n;
+    console.log('[db] change_orders.estimate_id relaxed to nullable; ' + n + ' row(s) preserved');
+  } catch (err) {
+    db.exec('PRAGMA foreign_keys = ON');
+    console.error('[db] change_orders parent relax skipped:', err.message);
+  }
+}
+
 runMigrations();
 seedAisc();
 normalizeSections();
@@ -317,5 +381,6 @@ seedFirstAdmin();
 seedStandardExclusions();
 reconcileWonLostFamilies();
 unpinLegacyPlateWeights();
+relaxChangeOrderParent();
 
 module.exports = db;

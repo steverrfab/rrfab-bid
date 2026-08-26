@@ -1,11 +1,15 @@
 -- Change Orders: two new tables. No existing table or column is altered.
+-- estimate_id is nullable: a change order may stand alone, with its own
+-- project_name / client_gc, and be attached to a bid later (see 056).
 -- Statements are idempotent because db.js re-runs every migration on startup.
 -- No triggers: the migration runner splits on ";" and would break on BEGIN...END.
 
 CREATE TABLE IF NOT EXISTS change_orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  estimate_id INTEGER NOT NULL REFERENCES estimates(id),
-  parent_type TEXT NOT NULL DEFAULT 'bid',
+  estimate_id INTEGER REFERENCES estimates(id),
+  parent_type TEXT NOT NULL DEFAULT 'standalone',
+  project_name TEXT NOT NULL DEFAULT '',
+  client_gc TEXT NOT NULL DEFAULT '',
   seq INTEGER NOT NULL DEFAULT 1,
   title TEXT NOT NULL DEFAULT '',
   reason TEXT NOT NULL DEFAULT '',

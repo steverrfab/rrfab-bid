@@ -11,6 +11,18 @@ function isAdminish(role) {
 
 const STATUSES = ['Draft', 'Submitted', 'Approved', 'Rejected'];
 
+// Used when a change order is written with no bid attached, so there is no
+// parent estimate to copy rates from. Same numbers as the column defaults in
+// migration 051.
+const DEFAULT_RATES = {
+  oh_rate: 0.05,
+  contingency_rate: 0,
+  profit_rate: 0.10,
+  cgl_rate: 0,
+  sales_tax_rate: 0.06,
+  tax_mode: 'full'
+};
+
 // The markup cascade, identical to the estimator and the approved mockup:
 // cost -> +overhead -> +contingency -> +profit -> +CGL = sell before tax -> +tax = total
 function calc(co, lines) {
@@ -33,32 +45,47 @@ function calc(co, lines) {
   };
 }
 
-// A change order's parent is always an estimates row. parent_type is 'job' when
-// that estimate is Won and carries a job number, otherwise 'bid'. Because it is
-// the same row either way, a CO written against an open bid picks up the job
-// number automatically once the bid is marked Won.
+// A change order MAY hang off an estimates row, but does not have to. With no
+// parent it is 'standalone' and carries its own project_name / client_gc.
+// With a parent, parent_type is 'job' when that estimate is Won and carries a
+// job number, otherwise 'bid'. Because it is the same row either way, a CO
+// written against an open bid picks up the job number automatically once the
+// bid is marked Won.
 function parentTypeFor(est) {
+  if (!est) return 'standalone';
   const hasJob = est.status === 'Won' && est.job_number != null && String(est.job_number).trim() !== '';
   return hasJob ? 'job' : 'bid';
 }
 
 function loadParent(estimateId) {
+  if (estimateId == null || estimateId === '') return null;
   return db.prepare(
     `SELECT id, project_name, job_number, bid_number, client_gc, status, created_by,
             oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode
        FROM estimates
       WHERE id = ? AND deleted_at IS NULL`
-  ).get(estimateId);
+  ).get(Number(estimateId)) || null;
+}
+
+// Standalone change orders run on their own sequence, kept apart from the
+// per-bid sequences so CO-004 with no bid never collides with "Bid 1234 CO-004".
+function nextSeq(estimateId) {
+  const row = estimateId == null
+    ? db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM change_orders WHERE estimate_id IS NULL').get()
+    : db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM change_orders WHERE estimate_id = ?').get(estimateId);
+  return row.m + 1;
 }
 
 // Estimators may only see change orders hanging off estimates assigned to them.
 // An estimate with no owner is admin-only, same rule as the bids list itself.
-// Admins and superadmins see everything.
-function canReach(user, est) {
+// A standalone change order has no estimate to inherit ownership from, so it
+// belongs to whoever created it. Admins and superadmins see everything.
+function canReach(user, est, co) {
   if (!user) return false;
   if (isAdminish(user.role)) return true;
-  if (!est) return false;
-  return est.created_by === user.userId;
+  if (est) return est.created_by === user.userId;
+  if (co) return co.created_by === user.userId;
+  return false;   // a parent was expected and could not be loaded
 }
 
 function linesFor(coId) {
@@ -69,6 +96,7 @@ function linesFor(coId) {
 
 function label(co, est) {
   const n = 'CO-' + String(co.seq).padStart(3, '0');
+  if (!est) return n;                                  // standalone
   if (co.parent_type === 'job') return ((est && est.job_number) || '') + ' ' + n;
   return 'Bid ' + ((est && est.bid_number) || '') + ' ' + n;
 }
@@ -79,6 +107,10 @@ function hydrate(co) {
   return {
     ...co,
     label: label(co, est),
+    // project_name / client_gc on the row are kept in sync with the parent on
+    // every write, so these two fields are always safe to print, linked or not.
+    project_name: est ? (est.project_name || '') : (co.project_name || ''),
+    client_gc: est ? (est.client_gc || '') : (co.client_gc || ''),
     parent: est ? {
       id: est.id,
       project_name: est.project_name,
@@ -92,15 +124,18 @@ function hydrate(co) {
   };
 }
 
-// The five fields the approved mockup marks with an asterisk. Enforced on create
-// and on update, so a change order cannot be saved into an incomplete state.
+// Enforced on create and on update, so a change order cannot be saved into an
+// incomplete state. Attaching a bid is OPTIONAL and always has been convenience
+// only: it fills in the project, the customer and the rates for you. What is
+// required either way is enough to identify the work, so when no bid is
+// attached the project name has to be typed in instead.
 function missingRequired(body) {
   const missing = [];
-  if (!body.estimate_id) missing.push('estimate_id');
   if (!String(body.title || '').trim()) missing.push('title');
   if (!String(body.reason || '').trim()) missing.push('reason');
   if (!String(body.requested_by || '').trim()) missing.push('requested_by');
   if (!String(body.scope || '').trim()) missing.push('scope');
+  if (!body.estimate_id && !String(body.project_name || '').trim()) missing.push('project_name');
   return missing;
 }
 
@@ -140,16 +175,25 @@ router.get('/targets', (req, res) => {
 
 // ---- LIST ----
 router.get('/', (req, res) => {
+  // Standalone change orders sort first, then everything grouped by its bid.
   const all = db.prepare(
-    'SELECT * FROM change_orders WHERE deleted_at IS NULL ORDER BY estimate_id, seq'
+    `SELECT * FROM change_orders
+      WHERE deleted_at IS NULL
+      ORDER BY (estimate_id IS NOT NULL), estimate_id, seq`
   ).all();
 
   const out = [];
   for (const co of all) {
     const est = loadParent(co.estimate_id);
-    if (!canReach(req.user, est)) continue;
+    if (co.estimate_id != null && !est) continue;   // parent deleted out from under it
+    if (!canReach(req.user, est, co)) continue;
     if (req.query.status && co.status !== req.query.status) continue;
-    if (req.query.estimate_id && co.estimate_id !== Number(req.query.estimate_id)) continue;
+    // ?estimate_id=none returns only the unattached ones.
+    if (req.query.estimate_id === 'none') {
+      if (co.estimate_id != null) continue;
+    } else if (req.query.estimate_id && co.estimate_id !== Number(req.query.estimate_id)) {
+      continue;
+    }
     out.push(hydrate(co));
   }
   res.json(out);
@@ -160,7 +204,7 @@ router.get('/:id', (req, res) => {
   const co = db.prepare('SELECT * FROM change_orders WHERE id = ? AND deleted_at IS NULL').get(Number(req.params.id));
   if (!co) return res.status(404).json({ error: 'not found' });
   const est = loadParent(co.estimate_id);
-  if (!canReach(req.user, est)) return res.status(403).json({ error: 'Access denied.' });
+  if (!canReach(req.user, est, co)) return res.status(403).json({ error: 'Access denied.' });
   res.json(hydrate(co));
 });
 
@@ -170,39 +214,45 @@ router.post('/', (req, res) => {
   const missing = missingRequired(b);
   if (missing.length) return res.status(400).json({ error: 'missing required fields', fields: missing });
 
-  const est = loadParent(Number(b.estimate_id));
-  if (!est) return res.status(404).json({ error: 'parent estimate not found' });
-  if (!canReach(req.user, est)) return res.status(403).json({ error: 'Access denied.' });
+  // A bid is optional. If one is named it must exist and be reachable; if none
+  // is named the change order simply stands on its own.
+  const est = b.estimate_id ? loadParent(b.estimate_id) : null;
+  if (b.estimate_id && !est) return res.status(404).json({ error: 'parent estimate not found' });
+  if (!canReach(req.user, est, { created_by: req.user.userId })) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
 
   const pricing = b.pricing_mode === 'estimator' ? 'estimator' : 'quick';
-  const seqRow = db.prepare(
-    'SELECT COALESCE(MAX(seq), 0) AS m FROM change_orders WHERE estimate_id = ?'
-  ).get(est.id);
 
   // Rates are snapshotted from the parent at create time so a change order keeps
   // the pricing it was written under if the parent estimate is later re-rated.
+  // With no parent there is nothing to copy, so the shop defaults apply.
+  const src = est || DEFAULT_RATES;
+
   const info = db.prepare(
     `INSERT INTO change_orders
-       (estimate_id, parent_type, seq, title, reason, requested_by, scope,
-        pricing_mode, status, oh_rate, contingency_rate, profit_rate, cgl_rate,
-        sales_tax_rate, tax_mode, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       (estimate_id, parent_type, project_name, client_gc, seq, title, reason,
+        requested_by, scope, pricing_mode, status, oh_rate, contingency_rate,
+        profit_rate, cgl_rate, sales_tax_rate, tax_mode, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
-    est.id,
+    est ? est.id : null,
     parentTypeFor(est),
-    seqRow.m + 1,
+    est ? (est.project_name || '') : String(b.project_name || '').trim(),
+    est ? (est.client_gc || '') : String(b.client_gc || '').trim(),
+    nextSeq(est ? est.id : null),
     String(b.title).trim(),
     String(b.reason).trim(),
     String(b.requested_by).trim(),
     String(b.scope).trim(),
     pricing,
     'Draft',
-    b.oh_rate != null ? +b.oh_rate : (+est.oh_rate || 0),
-    b.contingency_rate != null ? +b.contingency_rate : (+est.contingency_rate || 0),
-    b.profit_rate != null ? +b.profit_rate : (+est.profit_rate || 0),
-    b.cgl_rate != null ? +b.cgl_rate : (+est.cgl_rate || 0),
-    b.sales_tax_rate != null ? +b.sales_tax_rate : (+est.sales_tax_rate || 0),
-    b.tax_mode || est.tax_mode || 'full',
+    b.oh_rate != null ? +b.oh_rate : (+src.oh_rate || 0),
+    b.contingency_rate != null ? +b.contingency_rate : (+src.contingency_rate || 0),
+    b.profit_rate != null ? +b.profit_rate : (+src.profit_rate || 0),
+    b.cgl_rate != null ? +b.cgl_rate : (+src.cgl_rate || 0),
+    b.sales_tax_rate != null ? +b.sales_tax_rate : (+src.sales_tax_rate || 0),
+    b.tax_mode || src.tax_mode || 'full',
     req.user.userId
   );
 
@@ -216,15 +266,35 @@ router.put('/:id', (req, res) => {
   const co = db.prepare('SELECT * FROM change_orders WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!co) return res.status(404).json({ error: 'not found' });
   const est = loadParent(co.estimate_id);
-  if (!canReach(req.user, est)) return res.status(403).json({ error: 'Access denied.' });
+  if (!canReach(req.user, est, co)) return res.status(403).json({ error: 'Access denied.' });
 
   const b = req.body || {};
+
+  // The attached bid can be changed at any time: added to a standalone CO,
+  // swapped, or cleared back to standalone. Send estimate_id: null to detach.
+  // Leave the key out of the body entirely to keep whatever is already there.
+  const reparenting = Object.prototype.hasOwnProperty.call(b, 'estimate_id');
+  const newParentId = reparenting
+    ? (b.estimate_id === '' || b.estimate_id == null ? null : Number(b.estimate_id))
+    : co.estimate_id;
+
+  let newEst = est;
+  if (reparenting && newParentId !== co.estimate_id) {
+    newEst = loadParent(newParentId);
+    if (newParentId != null && !newEst) {
+      return res.status(404).json({ error: 'parent estimate not found' });
+    }
+    // You cannot park a change order on someone else's bid.
+    if (!canReach(req.user, newEst, co)) return res.status(403).json({ error: 'Access denied.' });
+  }
+
   const merged = {
-    estimate_id: co.estimate_id,
+    estimate_id: newParentId,
     title: b.title != null ? b.title : co.title,
     reason: b.reason != null ? b.reason : co.reason,
     requested_by: b.requested_by != null ? b.requested_by : co.requested_by,
-    scope: b.scope != null ? b.scope : co.scope
+    scope: b.scope != null ? b.scope : co.scope,
+    project_name: b.project_name != null ? b.project_name : co.project_name
   };
   const missing = missingRequired(merged);
   if (missing.length) return res.status(400).json({ error: 'missing required fields', fields: missing });
@@ -239,15 +309,36 @@ router.put('/:id', (req, res) => {
 
   const num = (incoming, current) => (incoming != null ? +incoming : current);
 
+  // Moving between a bid and standalone moves the CO onto the other numbering
+  // series, but only while it is still a Draft. Once it has been sent out the
+  // number it was sent under is the number it keeps, whatever it gets attached
+  // to afterwards.
+  const parentChanged = newParentId !== co.estimate_id;
+  const seq = (parentChanged && co.status === 'Draft') ? nextSeq(newParentId) : co.seq;
+
+  // Project and customer track the attached bid. Detached, they are yours to type.
+  const projectName = newEst ? (newEst.project_name || '')
+                             : String(merged.project_name || '').trim();
+  const clientGc = newEst ? (newEst.client_gc || '')
+                          : (b.client_gc != null ? String(b.client_gc).trim() : (co.client_gc || ''));
+
+  // Rates are NOT re-copied on re-parent. A change order keeps the pricing it
+  // was written under; change the rates by hand if that is what you want.
   db.prepare(
     `UPDATE change_orders
-        SET title = ?, reason = ?, requested_by = ?, scope = ?,
+        SET estimate_id = ?, parent_type = ?, project_name = ?, client_gc = ?, seq = ?,
+            title = ?, reason = ?, requested_by = ?, scope = ?,
             pricing_mode = ?, status = ?,
             oh_rate = ?, contingency_rate = ?, profit_rate = ?, cgl_rate = ?,
             sales_tax_rate = ?, tax_mode = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   ).run(
+    newParentId,
+    parentTypeFor(newEst),
+    projectName,
+    clientGc,
+    seq,
     String(merged.title).trim(),
     String(merged.reason).trim(),
     String(merged.requested_by).trim(),
@@ -274,7 +365,7 @@ router.put('/:id/lines', (req, res) => {
   const co = db.prepare('SELECT * FROM change_orders WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!co) return res.status(404).json({ error: 'not found' });
   const est = loadParent(co.estimate_id);
-  if (!canReach(req.user, est)) return res.status(403).json({ error: 'Access denied.' });
+  if (!canReach(req.user, est, co)) return res.status(403).json({ error: 'Access denied.' });
 
   const rows = Array.isArray(req.body) ? req.body : [];
   const del = db.prepare('DELETE FROM change_order_lines WHERE change_order_id = ?');
@@ -305,7 +396,7 @@ router.delete('/:id', (req, res) => {
   const co = db.prepare('SELECT * FROM change_orders WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!co) return res.status(404).json({ error: 'not found' });
   const est = loadParent(co.estimate_id);
-  if (!canReach(req.user, est)) return res.status(403).json({ error: 'Access denied.' });
+  if (!canReach(req.user, est, co)) return res.status(403).json({ error: 'Access denied.' });
 
   db.prepare("UPDATE change_orders SET deleted_at = datetime('now') WHERE id = ?").run(id);
   res.json({ ok: true, id });
