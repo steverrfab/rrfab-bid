@@ -56,6 +56,8 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/change-orders', require('./routes/change_orders'));
 // Off-site backup. Guarded by its own BACKUP_KEY secret, not a user login.
 app.use('/api/backup', require('./routes/backup'));
+// Automatic off-site copies on a timer. A no-op until the S3 variables are set.
+require('./lib/offsite_backup').start(require('./db'));
 // Reports — company-wide bid activity and dollar volume. Admin and superadmin only.
 app.use('/api/reports', requireAdmin, require('./routes/reports'));
 

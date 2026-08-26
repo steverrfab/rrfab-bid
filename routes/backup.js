@@ -118,7 +118,14 @@ router.get('/status', (req, res) => {
       counts[t] = null;
     }
   }
-  res.json({ ok: true, counts, time: new Date().toISOString() });
+  // The automatic off-site push reports itself here, so "is it actually still
+  // backing up?" is a question with an answer rather than an assumption.
+  res.json({
+    ok: true,
+    counts,
+    offsite: require('../lib/offsite_backup').state,
+    time: new Date().toISOString()
+  });
 });
 
 module.exports = router;
