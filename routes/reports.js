@@ -24,7 +24,7 @@ const VISIBLE = `
   LEFT JOIN users u ON u.id = e.created_by
   WHERE e.deleted_at IS NULL
     AND e.confirmed = 1
-    AND e.is_alternate = 0
+    AND e.is_alternate = 0 AND e.change_order_id IS NULL
     AND (e.bid_type = 'real' OR e.bid_type IS NULL)
 `;
 

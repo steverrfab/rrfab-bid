@@ -9,3 +9,7 @@ data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Stale artefacts left behind when a file is edited over a mounted filesystem.
+# Not source; must never be committed.
+.fuse_hidden*

@@ -204,6 +204,25 @@ function isAdminish(role) {
   return role === 'admin' || role === 'superadmin';
 }
 
+// The estimate behind a full-estimator change order is not a bid. The bid
+// lifecycle must not run on it: cloning or revising one would mint a real,
+// counted bid out of a change order, and submitting or winning one would email
+// the whole recipient list and push a job to the tracker. The buttons are hidden
+// in the editor, but this is the check that actually holds, whichever screen or
+// stale tab the request comes from.
+function isChangeOrderPricing(id) {
+  const row = db.prepare('SELECT change_order_id FROM estimates WHERE id = ?').get(id);
+  return !!(row && row.change_order_id != null);
+}
+
+function rejectIfChangeOrderPricing(id, res) {
+  if (!isChangeOrderPricing(id)) return false;
+  res.status(400).json({
+    error: 'This is the pricing behind a change order, not a bid. Submitting, winning, cloning and revising happen on the change order itself.'
+  });
+  return true;
+}
+
 function estimateOwnershipCheck(req, res, next) {
   if (!req.user || isAdminish(req.user.role)) return next();
   const id = Number(req.params.id);
@@ -259,7 +278,7 @@ router.get('/', (req, res) => {
              u.name as owner_name, u.email as owner_email
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
-      WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
+      WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0 AND e.change_order_id IS NULL
       ORDER BY e.updated_at DESC
     `).all();
     return res.json({ rows: attachAmounts(rows) });
@@ -271,7 +290,7 @@ router.get('/', (req, res) => {
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE e.created_by = ? AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
+    WHERE e.created_by = ? AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0 AND e.change_order_id IS NULL
     ORDER BY e.updated_at DESC
   `).all(req.user.userId);
   res.json({ rows: attachAmounts(rows) });
@@ -285,7 +304,7 @@ router.get('/deleted', (req, res) => {
            u.name as owner_name, u.email as owner_email
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
-    WHERE e.deleted_at IS NOT NULL AND e.is_alternate = 0`;
+    WHERE e.deleted_at IS NOT NULL AND e.is_alternate = 0 AND e.change_order_id IS NULL`;
   const rows = isAdminish(req.user.role)
     ? db.prepare(base + ' ORDER BY e.deleted_at DESC').all()
     : db.prepare(base + ' AND e.created_by = ? ORDER BY e.deleted_at DESC').all(req.user.userId);
@@ -301,8 +320,8 @@ router.get('/summary', (req, res) => {
   // stay in the system (visible in the list) but are excluded here. NULL is
   // treated as 'real' so legacy rows keep counting.
   const idRows = isAdminish(req.user.role)
-    ? db.prepare("SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all()
-    : db.prepare("SELECT id FROM estimates WHERE created_by = ? AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
+    ? db.prepare("SELECT id FROM estimates WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL)").all()
+    : db.prepare("SELECT id FROM estimates WHERE created_by = ? AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL)").all(req.user.userId);
 
   // Per-bid revenue/profit lives in lib/report_data.js so the dashboard and the
   // Excel reports (/api/reports) can never drift apart. Numbers are unchanged.
@@ -347,7 +366,7 @@ router.get('/activity', (req, res) => {
                 THEN strftime('%Y-%m-%dT%H:%M:%SZ', won_at) END AS win_at
     FROM estimates
     WHERE deleted_at IS NULL
-      AND is_alternate = 0
+      AND is_alternate = 0 AND change_order_id IS NULL
       AND (bid_type = 'real' OR bid_type IS NULL)
       AND (datetime(submitted_at) >= datetime(?) OR datetime(won_at) >= datetime(?))
     ORDER BY id ASC
@@ -369,7 +388,7 @@ router.get('/activity', (req, res) => {
 // tax is totaled. Mirrors the same visibility filters as /summary.
 router.get('/tax-summary', (req, res) => {
   if (!isAdminish(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-  const idRows = db.prepare("SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL)").all();
+  const idRows = db.prepare("SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL)").all();
   const rows = [];
   for (const { id } of idRows) {
     const bundle = loadFullEstimate(id);
@@ -565,6 +584,15 @@ router.put('/:id', async (req, res) => {
     return res.status(423).json({ error: 'This bid is being edited by ' + (lock.user_name || 'another user') });
   }
 
+  // Ordinary saves from the estimator are fine on a change order's pricing row —
+  // that is the whole point of it. Moving it through the BID statuses is not:
+  // Won emails the recipient list, generates an SOV and pushes a job to the
+  // tracker. A change order has its own status, on the change order.
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'status')
+      && rejectIfChangeOrderPricing(id, res)) {
+    return;
+  }
+
   // --- Job-number gate ---
   // A bid cannot move into Won without a valid, unique job number. Enforced here
   // (not just in the UI) so it holds no matter which screen triggers the win:
@@ -588,7 +616,7 @@ router.put('/:id', async (req, res) => {
     // (same bid-number base, e.g. 2005 / 2005.1) deliberately share one number,
     // so a blanket UNIQUE index can't be used; we exclude this job's own base.
     const base = String((grow && grow.bid_number) || '').split('.')[0];
-    const dupSql = 'SELECT id FROM estimates WHERE job_number = ? AND deleted_at IS NULL AND is_alternate = 0 AND id != ?'
+    const dupSql = 'SELECT id FROM estimates WHERE job_number = ? AND deleted_at IS NULL AND is_alternate = 0 AND change_order_id IS NULL AND id != ?'
       + (base ? ' AND bid_number != ? AND bid_number NOT LIKE ?' : '');
     const dupArgs = base ? [candidate, id, base, base + '.%'] : [candidate, id];
     if (db.prepare(dupSql).get(...dupArgs)) {
@@ -599,8 +627,14 @@ router.put('/:id', async (req, res) => {
 
   applyUpdate(id, req.body || {});
   // Assign a bid number the first time an estimate is confirmed (saved).
-  const cur = db.prepare('SELECT confirmed, bid_number FROM estimates WHERE id = ?').get(id);
-  if (cur && cur.confirmed === 1 && (!cur.bid_number || String(cur.bid_number).trim() === '')) {
+  // Never for the estimate behind a change order: it is confirmed from birth so
+  // its editor is not gated, and without this guard the first keystroke in that
+  // editor would burn a real bid number out of the shared series and leave a
+  // permanent gap in it.
+  const cur = db.prepare('SELECT confirmed, bid_number, change_order_id FROM estimates WHERE id = ?').get(id);
+  if (cur && cur.change_order_id == null
+      && cur.confirmed === 1
+      && (!cur.bid_number || String(cur.bid_number).trim() === '')) {
     db.prepare('UPDATE estimates SET bid_number = ? WHERE id = ?').run(nextBidNumber(), id);
   }
 
@@ -610,7 +644,7 @@ router.put('/:id', async (req, res) => {
     const meRow = db.prepare('SELECT bid_number FROM estimates WHERE id = ?').get(id);
     const base = String((meRow && meRow.bid_number) || '').split('.')[0];
     if (base) {
-      db.prepare("UPDATE estimates SET status = ?, updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND id != ? AND deleted_at IS NULL AND is_alternate = 0").run(req.body.status, base, base + '.%', id);
+      db.prepare("UPDATE estimates SET status = ?, updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND id != ? AND deleted_at IS NULL AND is_alternate = 0 AND change_order_id IS NULL").run(req.body.status, base, base + '.%', id);
     }
   }
 
@@ -757,7 +791,7 @@ router.post('/:id/mark-counted', (req, res) => {
   const tx = db.transaction(() => {
     if (base) {
       // Every other version of the same job drops out of dashboard totals...
-      db.prepare("UPDATE estimates SET bid_type = 'superseded', updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND deleted_at IS NULL AND is_alternate = 0").run(base, base + '.%');
+      db.prepare("UPDATE estimates SET bid_type = 'superseded', updated_at = datetime('now') WHERE (bid_number = ? OR bid_number LIKE ?) AND deleted_at IS NULL AND is_alternate = 0 AND change_order_id IS NULL").run(base, base + '.%');
     }
     // ...and the chosen one becomes the live, counted bid.
     db.prepare("UPDATE estimates SET bid_type = 'real', updated_at = datetime('now') WHERE id = ?").run(id);
@@ -772,6 +806,7 @@ router.post('/:id/submit', async (req, res) => {
   const id = Number(req.params.id);
   const est = db.prepare('SELECT id, proposal_date FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
+  if (rejectIfChangeOrderPricing(id, res)) return;
 
   // Set proposal_date if not already set, then update status and submitted_at
   const now = new Date().toISOString();
@@ -849,6 +884,7 @@ router.post('/:id/resubmit', async (req, res) => {
   }
   const est = db.prepare('SELECT id, status FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
+  if (rejectIfChangeOrderPricing(id, res)) return;
   if (est.status !== 'Submitted') {
     return res.status(400).json({ error: 'Only a Submitted bid can be resubmitted.' });
   }
@@ -1045,6 +1081,8 @@ router.post('/:id/clone', (req, res) => {
   const id = Number(req.params.id);
   const src = db.prepare('SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!src) return res.status(404).json({ error: 'not found' });
+  // Covers Revise too: it posts { revision: true } to this same route.
+  if (rejectIfChangeOrderPricing(id, res)) return;
 
   // Clone always means copy. It never makes a revision, whatever the status of
   // the bid being cloned. Making a new version of the SAME job is the separate
@@ -1600,7 +1638,7 @@ router.get('/feed/won-jobs', (req, res) => {
     return res.status(401).json({ error: 'invalid integration key' });
   }
   const idRows = db.prepare(
-    "SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND (bid_type = 'real' OR bid_type IS NULL) AND job_number IS NOT NULL AND job_number != ''"
+    "SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL) AND job_number IS NOT NULL AND job_number != ''"
   ).all();
   const jobs = [];
   for (const { id } of idRows) {
@@ -1643,4 +1681,6 @@ router.get('/feed/sov/:id', (req, res) => {
   res.json({ sov });
 });
 
-module.exports = { router, loadFullEstimate, estimateOwnershipCheck };
+// seedProcessOnlyDefaults is exported so a change order created against a
+// process-only job starts with the same default lines a process-only bid gets.
+module.exports = { router, loadFullEstimate, estimateOwnershipCheck, seedProcessOnlyDefaults, sellPretax };

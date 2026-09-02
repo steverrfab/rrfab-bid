@@ -26,7 +26,7 @@ router.post('/test', async (req, res) => {
   // newest bid of any status.
   const row = db.prepare(`
     SELECT id FROM estimates
-    WHERE deleted_at IS NULL AND is_alternate = 0
+    WHERE deleted_at IS NULL AND is_alternate = 0 AND change_order_id IS NULL
     ORDER BY (status = 'Won') DESC, id DESC
     LIMIT 1
   `).get();

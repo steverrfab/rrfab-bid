@@ -60,8 +60,18 @@ function parentTypeFor(est) {
 function loadParent(estimateId) {
   if (estimateId == null || estimateId === '') return null;
   return db.prepare(
+    // job_type is here so a change order against a process-only job opens the
+    // process-only estimator rather than the full structural one. The po_* rates
+    // come with it, because the process cascade reads those and none of the
+    // oh/contingency/profit/cgl ones.
     `SELECT id, project_name, job_number, bid_number, client_gc, status, created_by,
-            oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode
+            job_type,
+            oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode,
+            po_labor_rate, po_cost_rate, po_op_pct, po_tax_pct, po_galv_rate,
+            po_plate_rate, po_process_rate, po_process_rate_beam,
+            po_process_rate_channel, po_process_rate_angle, po_beam_fab_rate,
+            po_pf_rate_beam, po_pf_rate_channel, po_pf_rate_angle,
+            po_consumables_rate, po_trucking_rate
        FROM estimates
       WHERE id = ? AND deleted_at IS NULL`
   ).get(Number(estimateId)) || null;
@@ -94,6 +104,181 @@ function linesFor(coId) {
   ).all(coId);
 }
 
+// ---- FULL-ESTIMATOR CHANGE ORDERS ----
+// A change order priced with the full estimator is backed by its own row in
+// `estimates`, so the existing estimate editor, its cost inputs and its client
+// proposal all work on it untouched. That row is not a bid: it carries
+// change_order_id, and every query that lists or counts bids filters on
+// change_order_id IS NULL.
+function backingEstimate(coId) {
+  return db.prepare(
+    'SELECT * FROM estimates WHERE change_order_id = ? AND deleted_at IS NULL'
+  ).get(coId) || null;
+}
+
+// Created the first time a change order is set to estimator pricing. Rates and
+// job type come from the job the CO hangs off, so the change order is priced the
+// way the job was, which is the same rule the quick path already follows.
+function createBackingEstimate(co, parentEst, userId) {
+  // Deliberately looks past deleted_at. A backing estimate that was soft-deleted
+  // still holds real priced work, so it is revived rather than left orphaned
+  // behind a second, empty one that no screen could ever reach.
+  const existing = db.prepare(
+    'SELECT * FROM estimates WHERE change_order_id = ? ORDER BY id LIMIT 1'
+  ).get(co.id);
+  if (existing) {
+    if (existing.deleted_at != null) {
+      db.prepare('UPDATE estimates SET deleted_at = NULL WHERE id = ?').run(existing.id);
+      return db.prepare('SELECT * FROM estimates WHERE id = ?').get(existing.id);
+    }
+    return existing;
+  }
+
+  const isProcess = !!(parentEst && parentEst.job_type === 'process_only');
+  const info = db.prepare(
+    // bid_type is set to 'change_order' rather than left at its 'real' default.
+    // Every query that counts bids already filters on change_order_id IS NULL,
+    // but the counting queries ALSO filter on (bid_type = 'real' OR bid_type IS
+    // NULL), so this row now fails both tests independently. If a guard is ever
+    // missed on a new query, this still keeps it out of the numbers.
+    `INSERT INTO estimates
+       (project_name, client_gc, scope, status, job_type, confirmed, is_alternate,
+        bid_type, change_order_id, oh_rate, contingency_rate, profit_rate, cgl_rate,
+        sales_tax_rate, tax_mode, created_by)
+     VALUES (?,?,?,?,?,1,0,'change_order',?,?,?,?,?,?,?,?)`
+  ).run(
+    // Named for the CO, not the job, so it is obvious what it is if it is ever
+    // seen directly.
+    (parentEst ? (parentEst.project_name || '') : (co.project_name || '')) + ' — ' + co.title,
+    parentEst ? (parentEst.client_gc || '') : (co.client_gc || ''),
+    co.scope || '',
+    'Draft',
+    (parentEst && parentEst.job_type) || 'full',
+    co.id,
+    +co.oh_rate || 0,
+    +co.contingency_rate || 0,
+    +co.profit_rate || 0,
+    +co.cgl_rate || 0,
+    +co.sales_tax_rate || 0,
+    co.tax_mode || 'full',
+    // Owned by whoever owns the JOB, not by whoever happened to write the change
+    // order. Access to a change order is granted through its parent estimate
+    // (see canReach), so an owner mismatch here would let someone open a CO and
+    // then be refused by the estimate editor behind it.
+    (parentEst && parentEst.created_by) || userId
+  );
+  const backingId = info.lastInsertRowid;
+
+  if (isProcess) {
+    // The process cascade reads none of the rates copied above; these are the
+    // ones it actually uses, so without them the change order would be priced at
+    // the shop defaults rather than the way the job was priced.
+    const PO_RATES = [
+      'po_labor_rate', 'po_cost_rate', 'po_op_pct', 'po_tax_pct', 'po_galv_rate',
+      'po_plate_rate', 'po_process_rate', 'po_process_rate_beam',
+      'po_process_rate_channel', 'po_process_rate_angle', 'po_beam_fab_rate',
+      'po_pf_rate_beam', 'po_pf_rate_channel', 'po_pf_rate_angle',
+      'po_consumables_rate', 'po_trucking_rate'
+    ];
+    const carry = PO_RATES.filter(f => parentEst[f] != null);
+    if (carry.length) {
+      db.prepare(
+        'UPDATE estimates SET ' + carry.map(f => f + ' = ?').join(', ') + ' WHERE id = ?'
+      ).run(...carry.map(f => parentEst[f]), backingId);
+    }
+    // Same starting lines a new process-only bid gets, otherwise the tab opens
+    // empty with nothing to type into.
+    try {
+      const { seedProcessOnlyDefaults } = require('./estimates');
+      if (typeof seedProcessOnlyDefaults === 'function') seedProcessOnlyDefaults(backingId);
+    } catch (e) {
+      console.error('[change orders] process-only seed failed:', e.message);
+    }
+  }
+
+  return db.prepare('SELECT * FROM estimates WHERE id = ?').get(backingId);
+}
+
+// The estimator's cascade, restated in the shape the change-order screen and the
+// list expect. Required lazily: routes/estimates.js is a heavier module and this
+// is the only thing needed from it. Read-only, so nothing about estimates moves.
+function computedFromBacking(estimateId) {
+  let bundle = null;
+  try {
+    const { loadFullEstimate } = require('./estimates');
+    bundle = loadFullEstimate(estimateId);
+  } catch (e) {
+    return null;
+  }
+  if (!bundle || !bundle.estimate) return null;
+
+  // Price to win, when the estimator has set one, IS the sell price — it is what
+  // the client proposal quotes. Every other consumer in the app honours it
+  // (the bids list, reports, the tracker push, the SOV), so a change order that
+  // ignored it would show the office a different number from the one the
+  // customer was sent. sellPretax is that shared rule.
+  let sell;
+  try {
+    const { sellPretax } = require('./estimates');
+    sell = typeof sellPretax === 'function' ? +sellPretax(bundle) || 0 : null;
+  } catch (e) {
+    sell = null;
+  }
+
+  // A process-only change order is priced by the process-only cascade, exactly
+  // as a process-only bid is. Reading bundle.computed for one of those would
+  // report the structural numbers, which for a process job are all zero.
+  if (bundle.estimate.job_type === 'process_only') {
+    const p = bundle.processComputed;
+    if (!p) return null;
+    const cost = +p.yourCost || 0;
+    if (sell == null) sell = (+p.subTotal || 0) + (+p.opAmt || 0);
+    const tax = +p.taxAmt || 0;
+    const op = +p.opAmt || 0;
+    const gp = sell - cost;
+    return {
+      cost,
+      // The process cascade rolls overhead, contingency, profit and CGL into a
+      // single O&P figure, so there is nothing honest to split it into. It is
+      // reported under profit and the other three read zero.
+      oh: 0, cont: 0, prof: op, cgl: 0,
+      // What is left between cost + O&P and the sell price: the labor markup the
+      // process cascade carries, plus any price-to-win difference. Shown so the
+      // column on screen actually adds up.
+      roundingAdj: sell - (cost + op),
+      sell, tax,
+      total: sell + tax,
+      gp,
+      margin: sell ? gp / sell : 0,
+      markupPct: cost ? gp / cost : 0
+    };
+  }
+
+  if (!bundle.computed) return null;
+  const c = bundle.computed;
+  const cost = +c.directCost || 0;
+  if (sell == null) sell = +c.totalBid || 0;
+  const tax = (c.tax && +c.tax.amount) || 0;
+  const gp = sell - cost;
+  const oh = (c.markup && +c.markup.oh) || 0;
+  const cont = (c.markup && +c.markup.cont) || 0;
+  const prof = (c.markup && +c.markup.profit) || 0;
+  const cgl = (c.markup && +c.markup.cgl) || 0;
+  return {
+    cost, oh, cont, prof, cgl,
+    sell,
+    // totalBid is rounded up to the whole dollar while its parts are not, and a
+    // price to win moves the sell price outright, so the column would not add
+    // up. The difference is shown rather than hidden.
+    roundingAdj: sell - (cost + oh + cont + prof + cgl),
+    tax,
+    total: sell + tax,
+    gp,
+    margin: sell ? gp / sell : 0,
+    markupPct: cost ? gp / cost : 0
+  };
+}
+
 function label(co, est) {
   const n = 'CO-' + String(co.seq).padStart(3, '0');
   if (!est) return n;                                  // standalone
@@ -104,9 +289,18 @@ function label(co, est) {
 function hydrate(co) {
   const est = loadParent(co.estimate_id);
   const lines = linesFor(co.id);
+
+  // An estimator change order takes its money from its backing estimate; the
+  // quick path adds up its own line items. If a CO is set to estimator but its
+  // backing estimate has gone missing, the quick cascade is used rather than
+  // showing nothing.
+  const backing = co.pricing_mode === 'estimator' ? backingEstimate(co.id) : null;
+  const fromBacking = backing ? computedFromBacking(backing.id) : null;
+
   return {
     ...co,
     label: label(co, est),
+    estimator_estimate_id: backing ? backing.id : null,
     // project_name / client_gc on the row are kept in sync with the parent on
     // every write, so these two fields are always safe to print, linked or not.
     project_name: est ? (est.project_name || '') : (co.project_name || ''),
@@ -120,22 +314,24 @@ function hydrate(co) {
       status: est.status
     } : null,
     lines,
-    computed: calc(co, lines)
+    computed: fromBacking || calc(co, lines)
   };
 }
 
-// Enforced on create and on update, so a change order cannot be saved into an
-// incomplete state. Attaching a bid is OPTIONAL and always has been convenience
-// only: it fills in the project, the customer and the rates for you. What is
-// required either way is enough to identify the work, so when no bid is
-// attached the project name has to be typed in instead.
+// Enforced on create and on update. Deliberately thin: a change order gets
+// written in the field, often on a phone, and the point of starting one is to
+// capture the change before it is forgotten. Reason, requested-by and scope all
+// used to be mandatory up front, which meant a CO could not be opened at all
+// until every box was filled. They are now filled in on the detail screen at
+// whatever pace suits. A title is the one thing needed to tell one CO from
+// another in the list, so it is all that is enforced here.
+//
+// The job is required by the NEW-change-order screen rather than by this
+// function, because change orders created before that rule stand on their own
+// and still have to save.
 function missingRequired(body) {
   const missing = [];
   if (!String(body.title || '').trim()) missing.push('title');
-  if (!String(body.reason || '').trim()) missing.push('reason');
-  if (!String(body.requested_by || '').trim()) missing.push('requested_by');
-  if (!String(body.scope || '').trim()) missing.push('scope');
-  if (!body.estimate_id && !String(body.project_name || '').trim()) missing.push('project_name');
   return missing;
 }
 
@@ -146,7 +342,7 @@ router.get('/targets', (req, res) => {
     `SELECT id, project_name, job_number, bid_number, client_gc, status, created_by,
             oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode
        FROM estimates
-      WHERE deleted_at IS NULL AND is_alternate = 0
+      WHERE deleted_at IS NULL AND is_alternate = 0 AND change_order_id IS NULL
       ORDER BY COALESCE(job_number, bid_number)`
   ).all();
 
@@ -241,10 +437,11 @@ router.post('/', (req, res) => {
     est ? (est.project_name || '') : String(b.project_name || '').trim(),
     est ? (est.client_gc || '') : String(b.client_gc || '').trim(),
     nextSeq(est ? est.id : null),
-    String(b.title).trim(),
-    String(b.reason).trim(),
-    String(b.requested_by).trim(),
-    String(b.scope).trim(),
+    String(b.title || '').trim(),
+    // Blank rather than the string "undefined" when the field was never sent.
+    String(b.reason || '').trim(),
+    String(b.requested_by || '').trim(),
+    String(b.scope || '').trim(),
     pricing,
     'Draft',
     b.oh_rate != null ? +b.oh_rate : (+src.oh_rate || 0),
@@ -257,6 +454,31 @@ router.post('/', (req, res) => {
   );
 
   const co = db.prepare('SELECT * FROM change_orders WHERE id = ?').get(info.lastInsertRowid);
+
+  // Estimator pricing needs its backing estimate to exist before the editor can
+  // be opened on it.
+  // A change order marked estimator with no pricing behind it is a broken
+  // record, so this failing takes the whole create with it rather than handing
+  // back a 201 for something half-made.
+  if (pricing === 'estimator') {
+    try {
+      createBackingEstimate(co, est, req.user.userId);
+    } catch (e) {
+      console.error('[change orders] backing estimate failed:', e.message);
+      // Undo the change order too, rather than leaving one that claims an
+      // estimator it does not have. Any estimate row that did get inserted is
+      // detached first: foreign keys are on, so deleting the change order out
+      // from under it would throw and the rollback itself would fail.
+      try {
+        db.prepare('UPDATE estimates SET change_order_id = NULL, deleted_at = COALESCE(deleted_at, datetime(\'now\')) WHERE change_order_id = ?').run(co.id);
+        db.prepare('DELETE FROM change_orders WHERE id = ?').run(co.id);
+      } catch (e2) {
+        console.error('[change orders] rollback failed:', e2.message);
+      }
+      return res.status(500).json({ error: 'Could not set up the estimator for this change order. Nothing was saved.' });
+    }
+  }
+
   res.status(201).json(hydrate(co));
 });
 
@@ -339,10 +561,10 @@ router.put('/:id', (req, res) => {
     projectName,
     clientGc,
     seq,
-    String(merged.title).trim(),
-    String(merged.reason).trim(),
-    String(merged.requested_by).trim(),
-    String(merged.scope).trim(),
+    String(merged.title || '').trim(),
+    String(merged.reason || '').trim(),
+    String(merged.requested_by || '').trim(),
+    String(merged.scope || '').trim(),
     pricing,
     status,
     num(b.oh_rate, co.oh_rate),
@@ -354,7 +576,26 @@ router.put('/:id', (req, res) => {
     id
   );
 
-  res.json(hydrate(db.prepare('SELECT * FROM change_orders WHERE id = ?').get(id)));
+  const after = db.prepare('SELECT * FROM change_orders WHERE id = ?').get(id);
+
+  // Switching a change order onto estimator pricing gives it its backing
+  // estimate. Switching back the other way deliberately leaves that estimate
+  // alone: the quick line items and the estimator each keep their own work, so
+  // flipping the mode to look at the other one never destroys anything.
+  if (pricing === 'estimator') {
+    try {
+      createBackingEstimate(after, newEst, req.user.userId);
+    } catch (e) {
+      console.error('[change orders] backing estimate failed:', e.message);
+      // The rest of the update stands; only the switch to estimator did not, so
+      // the mode is put back rather than leaving it claiming an estimator that
+      // is not there.
+      db.prepare("UPDATE change_orders SET pricing_mode = ? WHERE id = ?").run(co.pricing_mode, id);
+      return res.status(500).json({ error: 'Could not set up the estimator for this change order.' });
+    }
+  }
+
+  res.json(hydrate(after));
 });
 
 // ---- REPLACE LINES ----
@@ -399,6 +640,15 @@ router.delete('/:id', (req, res) => {
   if (!canReach(req.user, est, co)) return res.status(403).json({ error: 'Access denied.' });
 
   db.prepare("UPDATE change_orders SET deleted_at = datetime('now') WHERE id = ?").run(id);
+
+  // The backing estimate of an estimator CO goes with it, otherwise it is left
+  // orphaned and invisible with no way to reach it. Soft delete, same as the CO,
+  // so nothing is actually destroyed. It stays out of the trash list because
+  // that list filters on change_order_id IS NULL.
+  db.prepare(
+    "UPDATE estimates SET deleted_at = datetime('now') WHERE change_order_id = ? AND deleted_at IS NULL"
+  ).run(id);
+
   res.json({ ok: true, id });
 });
 
