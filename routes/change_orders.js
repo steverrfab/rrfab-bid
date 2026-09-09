@@ -86,6 +86,22 @@ function nextSeq(estimateId) {
   return row.m + 1;
 }
 
+// Two change orders on the same job must not share a number; that is the whole
+// point of the number. Standalone change orders (no job) are compared with each
+// other. Case and surrounding spaces are ignored, so "co-7" and "CO-7 " clash.
+function coNumberTaken(estimateId, coNumber, excludeId) {
+  const n = String(coNumber || '').trim().toLowerCase();
+  if (!n) return false;
+  const row = estimateId == null
+    ? db.prepare(`SELECT id FROM change_orders
+                   WHERE estimate_id IS NULL AND deleted_at IS NULL
+                     AND LOWER(TRIM(co_number)) = ? AND id != ?`).get(n, excludeId || 0)
+    : db.prepare(`SELECT id FROM change_orders
+                   WHERE estimate_id = ? AND deleted_at IS NULL
+                     AND LOWER(TRIM(co_number)) = ? AND id != ?`).get(estimateId, n, excludeId || 0);
+  return !!row;
+}
+
 // Estimators may only see change orders hanging off estimates assigned to them.
 // An estimate with no owner is admin-only, same rule as the bids list itself.
 // A standalone change order has no estimate to inherit ownership from, so it
@@ -279,8 +295,12 @@ function computedFromBacking(estimateId) {
   };
 }
 
+// The number is whatever the user typed (co_number). Change orders written
+// before that column existed have none, and keep the automatic CO-00N they
+// were shown under, so nothing already sent to a GC changes its name.
 function label(co, est) {
-  const n = 'CO-' + String(co.seq).padStart(3, '0');
+  const typed = String(co.co_number || '').trim();
+  const n = typed || ('CO-' + String(co.seq).padStart(3, '0'));
   if (!est) return n;                                  // standalone
   if (co.parent_type === 'job') return ((est && est.job_number) || '') + ' ' + n;
   return 'Bid ' + ((est && est.bid_number) || '') + ' ' + n;
@@ -420,6 +440,14 @@ router.post('/', (req, res) => {
 
   const pricing = b.pricing_mode === 'estimator' ? 'estimator' : 'quick';
 
+  // The number is the user's. Blank is allowed here only so that change orders
+  // written by older screens and tests still save; the new-change-order screen
+  // requires one.
+  const coNumber = String(b.co_number || '').trim();
+  if (coNumberTaken(est ? est.id : null, coNumber, 0)) {
+    return res.status(409).json({ error: `Change order ${coNumber} already exists on this job. Pick a different number.` });
+  }
+
   // Rates are snapshotted from the parent at create time so a change order keeps
   // the pricing it was written under if the parent estimate is later re-rated.
   // With no parent there is nothing to copy, so the shop defaults apply.
@@ -427,16 +455,17 @@ router.post('/', (req, res) => {
 
   const info = db.prepare(
     `INSERT INTO change_orders
-       (estimate_id, parent_type, project_name, client_gc, seq, title, reason,
+       (estimate_id, parent_type, project_name, client_gc, seq, co_number, title, reason,
         requested_by, scope, pricing_mode, status, oh_rate, contingency_rate,
         profit_rate, cgl_rate, sales_tax_rate, tax_mode, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     est ? est.id : null,
     parentTypeFor(est),
     est ? (est.project_name || '') : String(b.project_name || '').trim(),
     est ? (est.client_gc || '') : String(b.client_gc || '').trim(),
     nextSeq(est ? est.id : null),
+    coNumber || null,
     String(b.title || '').trim(),
     // Blank rather than the string "undefined" when the field was never sent.
     String(b.reason || '').trim(),
@@ -512,6 +541,7 @@ router.put('/:id', (req, res) => {
 
   const merged = {
     estimate_id: newParentId,
+    co_number: b.co_number != null ? String(b.co_number).trim() : co.co_number,
     title: b.title != null ? b.title : co.title,
     reason: b.reason != null ? b.reason : co.reason,
     requested_by: b.requested_by != null ? b.requested_by : co.requested_by,
@@ -520,6 +550,10 @@ router.put('/:id', (req, res) => {
   };
   const missing = missingRequired(merged);
   if (missing.length) return res.status(400).json({ error: 'missing required fields', fields: missing });
+
+  if (coNumberTaken(newParentId, merged.co_number, id)) {
+    return res.status(409).json({ error: `Change order ${String(merged.co_number).trim()} already exists on this job. Pick a different number.` });
+  }
 
   const status = b.status != null ? String(b.status) : co.status;
   if (!STATUSES.includes(status)) {
@@ -549,7 +583,7 @@ router.put('/:id', (req, res) => {
   db.prepare(
     `UPDATE change_orders
         SET estimate_id = ?, parent_type = ?, project_name = ?, client_gc = ?, seq = ?,
-            title = ?, reason = ?, requested_by = ?, scope = ?,
+            co_number = ?, title = ?, reason = ?, requested_by = ?, scope = ?,
             pricing_mode = ?, status = ?,
             oh_rate = ?, contingency_rate = ?, profit_rate = ?, cgl_rate = ?,
             sales_tax_rate = ?, tax_mode = ?,
@@ -561,6 +595,7 @@ router.put('/:id', (req, res) => {
     projectName,
     clientGc,
     seq,
+    String(merged.co_number || '').trim() || null,
     String(merged.title || '').trim(),
     String(merged.reason || '').trim(),
     String(merged.requested_by || '').trim(),

@@ -286,6 +286,29 @@ async function run() {
   const gone = db.prepare('SELECT deleted_at FROM estimates WHERE id = ?').get(backing.id);
   t('backing estimate soft-deleted too', gone.deleted_at !== null, gone.deleted_at);
 
+  console.log('\n--- 16. the change order number is typed by the user ---');
+  USER = { userId: 9, role: 'admin' };
+  r = await call('POST', '/', { title: 'Extra stair', co_number: 'CO-07', estimate_id: 2 });
+  t('created with a typed number', r.status === 201, r.body);
+  const typed = r.body;
+  t('label uses the typed number, not CO-00N', typed.label === 'J-2201 CO-07', typed.label);
+  t('co_number comes back', typed.co_number === 'CO-07', typed.co_number);
+  r = await call('POST', '/', { title: 'Dup', co_number: ' co-07 ', estimate_id: 2 });
+  t('same number on the same job is refused', r.status === 409, r.body);
+  r = await call('POST', '/', { title: 'Other job', co_number: 'CO-07', estimate_id: 3 });
+  t('same number on a different job is fine', r.status === 201, r.body);
+  const otherJob = r.body;
+  r = await call('PUT', '/' + typed.id, { co_number: 'CO-08' });
+  t('number can be changed', r.status === 200 && r.body.co_number === 'CO-08' && r.body.label === 'J-2201 CO-08', r.body);
+  r = await call('PUT', '/' + otherJob.id, { estimate_id: 2, co_number: 'CO-08' });
+  t('moving onto a job that already has that number is refused', r.status === 409, r.body);
+  r = await call('PUT', '/' + otherJob.id, { estimate_id: 2, co_number: 'CO-09' });
+  t('moving with a fresh number works', r.status === 200 && r.body.estimate_id === 2, r.body);
+  // Change orders written before the column existed keep their old label.
+  const oldOne = (await call('GET', '/' + linked.id)).body;
+  t('untyped change orders keep the automatic label', oldOne.co_number == null && /CO-00\d$/.test(oldOne.label), oldOne);
+  await call('DELETE', '/' + typed.id); await call('DELETE', '/' + otherJob.id);
+
   console.log('\n' + (fail ? 'FAILURES: ' + fail + ' / ' + (pass+fail) : 'ALL ' + pass + ' CHECKS PASSED'));
   srv.close();
   process.exit(fail ? 1 : 0);
