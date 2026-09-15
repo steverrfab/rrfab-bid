@@ -1,4 +1,10 @@
 -- Processing rate was set to 0.10 in the schema default, which silently added
--- a $0.10/lb processing labor charge to every estimate. Zero it out so rates
--- are only non-zero when explicitly entered.
-UPDATE estimates SET processing_rate = 0 WHERE processing_rate = 0.10;
+-- a $0.10/lb processing labor charge to every estimate. This file used to zero
+-- it out with an unguarded UPDATE.
+--
+-- RETIRED 2026-09-11. db.js re-runs every migration on every startup, so that
+-- UPDATE fired on every deploy and silently reset any bid where an estimator
+-- had deliberately entered 0.10 back to 0. The one-time cleanup it was written
+-- for ran long ago on the production database, and every new estimate is now
+-- created with processing_rate = 0 explicitly. Nothing left to do here.
+-- Intentionally empty.

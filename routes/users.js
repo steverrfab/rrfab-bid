@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generateToken, requireAdmin } = require('../lib/auth');
-const { sendInvite } = require('../lib/email');
+const { sendInvite, sendPasswordReset } = require('../lib/email');
 
 // All user management routes require admin role
 router.use(requireAdmin);
@@ -123,6 +123,33 @@ router.put('/:id', (req, res) => {
   params.push(id);
   db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...params);
   res.json({ ok: true });
+});
+
+// POST /api/users/:id/reset-password  — email the user a link to choose a new password
+// Reuses the invite mechanism: a fresh 48-hour token that lands on the same
+// "set your password" screen. The account is NOT deactivated and the current
+// password keeps working until the link is used, so a reset that is never
+// clicked locks nobody out. Admins may reset estimators; superadmin anyone.
+router.post('/:id/reset-password', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (req.user.role !== 'superadmin' && user.role !== 'estimator') {
+      return res.status(403).json({ error: 'Only superadmin can reset an admin\'s password.' });
+    }
+    db.prepare("UPDATE invites SET used_at = datetime('now') WHERE user_id = ? AND used_at IS NULL").run(user.id);
+    const token = generateToken();
+    const expires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    db.prepare('INSERT INTO invites (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expires);
+    const resetUrl = `${FRONTEND_URL()}/#/invite/${token}`;
+    const emailResult = await sendPasswordReset(user.email, user.name || user.email, resetUrl);
+    console.log(`[users] password reset link for ${user.email} — ${resetUrl}`);
+    res.json({ ok: true, resetUrl, emailResult });
+  } catch (err) {
+    console.error('[users] reset-password failed:', err);
+    res.status(500).json({ error: err.message || 'Reset failed.' });
+  }
 });
 
 // GET /api/users/access-requests  — list pending access requests

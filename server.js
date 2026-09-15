@@ -54,6 +54,10 @@ app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
 app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
 app.use('/api/change-orders', require('./routes/change_orders'));
+// Bid Calendar: a view over estimates plus per-user reminder settings.
+app.use('/api/calendar', require('./routes/calendar'));
+// Emails the estimator 24 hours before a bid is due (and the morning of, if they opted in).
+require('./lib/bid_reminders').start(db);
 // Off-site backup. Guarded by its own BACKUP_KEY secret, not a user login.
 app.use('/api/backup', require('./routes/backup'));
 // Automatic off-site copies on a timer. A no-op until the S3 variables are set.

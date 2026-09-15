@@ -25,7 +25,7 @@ router.post('/login', (req, res) => {
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active, tracker_role FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, phone FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   res.json(user);
 });
