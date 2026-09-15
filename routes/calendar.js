@@ -60,21 +60,21 @@ router.get('/', (req, res) => {
     ? db.prepare("SELECT id, name, email FROM users WHERE active = 1 ORDER BY name ASC").all()
     : [];
 
-  // Open bids that are not on the calendar yet (no due date, or no due time),
-  // for the "Add to calendar" picker. Same visibility rule as above.
-  const unscheduled = db.prepare(`
+  // Every bid this user can see, for the "Add to calendar" picker. Ones with
+  // no due date or time come first; the rest can be picked to re-date them.
+  const pickable = db.prepare(`
     SELECT e.id, e.bid_number, e.project_name, e.client_gc, e.bid_date, e.bid_time, e.status, e.created_by, u.name AS estimator_name
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
     WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0 AND e.change_order_id IS NULL
       AND (e.bid_type = 'real' OR e.bid_type IS NULL)
-      AND e.status = 'Draft'
-      AND (e.bid_date IS NULL OR e.bid_date = '' OR e.bid_time IS NULL OR e.bid_time = '')
       ${userFilter ? 'AND e.created_by = ?' : ''}
     ORDER BY e.id DESC
   `).all(...(userFilter ? [userFilter] : [])).map(r => ({ ...r, bid_date: isoDate(r.bid_date), bid_time: isoTime(r.bid_time) }));
+  const unscheduled = pickable.filter(b => !b.bid_date || !b.bid_time);
+  const scheduled = pickable.filter(b => b.bid_date && b.bid_time);
 
-  res.json({ bids, users, unscheduled, viewing: userFilter, is_admin: admin });
+  res.json({ bids, users, unscheduled, scheduled, viewing: userFilter, is_admin: admin });
 });
 
 // GET /api/calendar/due-soon
