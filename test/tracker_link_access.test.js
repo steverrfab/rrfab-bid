@@ -228,6 +228,15 @@ async function run() {
   r = await call('est', 'POST', '/api/auth/tracker-sso', {});
   t('plain link unchanged', r.status === 200 && /\/sso\?token=[^&]+$/.test(r.body.url), r.body);
 
+  console.log('\n--- 5b. a superadmin always has the tracker ---');
+  await call('boss', 'PUT', '/api/users/21', { tracker_role: 'none' });
+  r = await call('boss', 'GET', '/api/auth/me');
+  t('superadmin with no level shows as tracker admin', r.body.tracker_role === 'admin', r.body.tracker_role);
+  r = await call('boss', 'POST', '/api/auth/tracker-sso', {});
+  t('and can open the tracker', r.status === 200 && /\/sso\?token=/.test(r.body.url), r.body);
+  r = await call('adm', 'GET', '/api/auth/me');
+  t('an admin with no level still has none', r.body.tracker_role === 'none', r.body.tracker_role);
+
   console.log('\n--- 6. shared key checks ---');
   r = await fetch(B + '/api/estimates/feed/won-jobs', { headers: { 'X-Integration-Key': 'wrong' } });
   t('won-jobs feed refuses a wrong key', r.status === 401, r.status);

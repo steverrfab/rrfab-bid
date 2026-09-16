@@ -4,7 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const { generateToken, requireAdmin } = require('../lib/auth');
 const { sendInvite, sendPasswordReset } = require('../lib/email');
-const { PAGES, cleanIncoming, effectivePages } = require('../lib/access');
+const { PAGES, cleanIncoming, effectivePages, effectiveTrackerRole } = require('../lib/access');
 
 // All user management routes require admin role
 router.use(requireAdmin);
@@ -31,6 +31,7 @@ router.get('/', (req, res) => {
     let custom = null;
     try { custom = u.page_access ? JSON.parse(u.page_access) : null; } catch { custom = null; }
     u.pages = effectivePages(u);
+    u.tracker_role = effectiveTrackerRole(u);
     u.page_access = Array.isArray(custom) ? custom : null;
   }
   res.json({ users, pages: PAGES });

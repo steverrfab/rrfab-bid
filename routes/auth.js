@@ -5,7 +5,7 @@ const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
 const { sendAccessRequestNotification } = require('../lib/email');
-const { effectivePages } = require('../lib/access');
+const { effectivePages, effectiveTrackerRole } = require('../lib/access');
 
 // POST /api/auth/login  { email, password }
 router.post('/login', (req, res) => {
@@ -20,7 +20,7 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: user.tracker_role, pages: effectivePages(user) } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), pages: effectivePages(user) } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
@@ -30,7 +30,7 @@ router.get('/me', (req, res) => {
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   // pages: the menu items this person may see (see lib/access.js).
   const { page_access, ...rest } = user;
-  res.json({ ...rest, pages: effectivePages(user) });
+  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), pages: effectivePages(user) });
 });
 
 // POST /api/auth/tracker-sso: mint a short-lived signed token that logs the
@@ -38,7 +38,8 @@ router.get('/me', (req, res) => {
 // TRACKER_KEY secret already used by the won-jobs feed.
 router.post('/tracker-sso', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT email, name, active, tracker_role FROM users WHERE id = ?').get(req.user.userId);
+  const row = db.prepare('SELECT email, name, active, role, tracker_role FROM users WHERE id = ?').get(req.user.userId);
+  const user = row ? { ...row, tracker_role: effectiveTrackerRole(row) } : null;
   if (!user || !user.active || !user.tracker_role || user.tracker_role === 'none') {
     return res.status(403).json({ error: 'No tracker access' });
   }
@@ -88,7 +89,7 @@ router.post('/invite/:token/accept', (req, res) => {
   const row = db.prepare('SELECT id, email, name, role, tracker_role, page_access FROM users WHERE id = ?').get(invite.user_id);
   const { page_access, ...user } = row;
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { ...user, pages: effectivePages(row) } });
+  res.json({ token, user: { ...user, tracker_role: effectiveTrackerRole(row), pages: effectivePages(row) } });
 });
 
 // POST /api/auth/change-password  — authenticated user changes their own password
