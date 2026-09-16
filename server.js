@@ -1,5 +1,8 @@
 'use strict';
 const express = require('express');
+// Must load before any route is registered: turns errors in async route
+// handlers into normal error responses instead of a server crash.
+require('./lib/async_errors');
 const cors = require('cors');
 
 // Initialize database (runs migrations + seed on import)
@@ -98,7 +101,12 @@ app.use((req, res) => res.status(404).json({ error: 'not found', path: req.path 
 // Error handler
 app.use((err, req, res, next) => {
   console.error('server error:', err);
-  res.status(500).json({ error: err.message || 'internal error' });
+  if (res.headersSent) return;
+  // A bad value in a request (an object where text or a number belongs) is the
+  // caller's mistake, not a server fault.
+  const bad = (err instanceof TypeError || err instanceof RangeError)
+    && /bind|SQLite3 can only|parameter values/i.test(err.message || '');
+  res.status(bad ? 400 : 500).json({ error: bad ? 'One of the values sent is not valid.' : (err.message || 'internal error') });
 });
 
 const PORT = process.env.PORT || 3001;

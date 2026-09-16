@@ -6,9 +6,7 @@ const calc = require('../lib/calc');
 const { computeProcess } = require('../lib/calc_process');
 const { parseKiss, parseKissToTakeoff } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
-const { subLabel } = require('../lib/sub_labels');
 const { buildProposalView } = require('../lib/proposal_lines');
-const { footSovItems } = require('../lib/round');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendResubmitNotification, sendWonNotification } = require('../lib/email');
 const { buildWonJobPayload, pushWonJobToTracker, fetchTrackerJobStatus } = require('../lib/tracker_push');
@@ -50,42 +48,12 @@ function nextRevision(base) {
   return base + '.' + (maxRev + 1);
 }
 
-function buildSovItems(bundle) {
-  const e = bundle.estimate;
-  const c = bundle.computed;
-  const m = (1 + (+e.oh_rate || 0)) * (1 + (+e.contingency_rate || 0))
-          * (1 + (+e.profit_rate || 0)) * (1 + (+e.cgl_rate || 0));
-  const items = [];
-
-  // Add scope as item 0 if present
-  if (e.scope && e.scope.trim()) {
-    items.push({ item_no: '0', description: 'Scope of Work: ' + e.scope, scheduled_value: 0 });
-  }
-
-  const exTot = (sec) => (bundle.extras || []).filter(x => (+x.section) === sec)
-    .reduce((acc, x) => acc + (+x.qty || 0) * (+x.rate || 0), 0);
-  const exFab = exTot(2) + exTot(3);
-  const exErect = exTot(4);
-
-  // Material and finishes
-  items.push(
-    { item_no: '1', description: 'Structural Steel Material — Furnished', scheduled_value: c.materialPrice * m },
-    { item_no: '2', description: 'Shop Fabrication and Finishes',         scheduled_value: (c.fabHours + c.paint + c.consumables + c.handling + c.processingLabor + exFab) * m },
-    { item_no: '3', description: 'Detailing and PE-Stamped Shop Drawings', scheduled_value: (((+e.struct_detailing||0)*(+e.struct_detailing_qty||1)) + ((+e.misc_detailing||0)*(+e.misc_detailing_qty||1)) + ((+e.pe_stamp||0)*(+e.pe_stamp_qty||1))) * m },
-    { item_no: '4', description: 'Freight to Jobsite',                    scheduled_value: (+e.freight || 0) * (+e.freight_qty || 1) * m },
-    { item_no: '5', description: 'Field Erection, Equipment, and Rigging', scheduled_value: (c.erectionLabor + (+e.erection_equip || 0) * (+e.erection_equip_qty || 1) + exErect) * m },
-    { item_no: '6', description: 'Galvanizing',                           scheduled_value: c.galv * m }
-    // Processing Labor (was item 7) is bundled into item 2 above.
-  );
-
-  let next = 7;
-  if ((+e.sub_joist_deck || 0) > 0)
-    items.push({ item_no: String(next++), description: subLabel(e.sub_joist_deck_label, 'Joist and Deck — by Subcontractor'), scheduled_value: (+e.sub_joist_deck || 0) * (+e.sub_joist_deck_qty || 1) * m });
-  if ((+e.sub_erection || 0) > 0)
-    items.push({ item_no: String(next++), description: subLabel(e.sub_erection_label, 'Erection — by Subcontractor'), scheduled_value: (+e.sub_erection || 0) * (+e.sub_erection_qty || 1) * m });
-  // Cost-Inputs extra rows are folded into items 1/2/5 above, never their own line.
-  const out = items.filter((it, i) => i === 0 || it.scheduled_value > 0).map((it, i) => ({ ...it, position: i }));
-  return footSovItems(out);
+// SOV lines come from routes/sov.js (autoGenerateItems), the same generator the
+// SOV tab uses, so price to win, hidden and manual proposal lines, alternates
+// and process-only jobs all come out the same everywhere. Required lazily
+// because routes/sov.js requires this file.
+function sovItemsFor(bundle) {
+  return require('./sov').autoGenerateItems(bundle);
 }
 
 const EST_COLS = [
@@ -677,12 +645,10 @@ router.put('/:id', async (req, res) => {
       }
     }
     const existingSov = db.prepare('SELECT id FROM sov_items WHERE estimate_id = ? LIMIT 1').get(id);
-    // Pre-seed only for full-project jobs. buildSovItems uses full-project totals,
-    // so for process-only it would write zero-value lines and then block the
-    // /sov route (which has the process-only math) from generating correctly.
-    // Leaving process-only unseeded lets the SOV tab generate it properly on open.
-    if (!existingSov && bundle.estimate.job_type !== 'process_only') {
-      const sovItems = buildSovItems(bundle);
+    // Seeded with the SOV tab's own generator, so the schedule matches the price
+    // that was quoted (price to win included) for full and process-only jobs.
+    if (!existingSov) {
+      const sovItems = sovItemsFor(bundle);
       const ins = db.prepare(
         'INSERT INTO sov_items (estimate_id, item_no, description, scheduled_value, position) VALUES (?,?,?,?,?)'
       );
@@ -1665,7 +1631,7 @@ router.get('/feed/sov/:id', requireIntegrationKey('TRACKER_KEY'), (req, res) => 
   ).all(id);
   if (items.length === 0) {
     const bundle = loadFullEstimate(id);
-    if (bundle) items = buildSovItems(bundle);
+    if (bundle) items = sovItemsFor(bundle);
   }
   const sov = items.map((it, i) => ({
     item_no: it.item_no != null ? String(it.item_no) : String(i + 1),

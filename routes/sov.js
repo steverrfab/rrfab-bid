@@ -7,7 +7,28 @@ const { loadFullEstimate } = require('./estimates');
 const { buildProposalView } = require('../lib/proposal_lines');
 const { generateSov } = require('../lib/sov_pdf');
 const { subLabel } = require('../lib/sub_labels');
-const { footSovItems } = require('../lib/round');
+const { footToWholeDollars } = require('../lib/round');
+
+// Make the schedule add up to exactly what the client proposal quoted (before
+// tax): the price to win when one is set, otherwise the whole-dollar total of
+// the proposal lines. The generated lines are proportioned to that number and
+// rounded to whole dollars, with any leftover cents put on the largest line.
+// Alternates are priced separately and keep their own value.
+// Before this, the lines were scaled against the bid total AFTER it had been
+// rounded up to the next dollar, so a schedule could land a few dollars off the
+// quoted price.
+function footToContract(items, bundle) {
+  const isAlt = it => String(it.item_no || '').startsWith('ALT');
+  const main = items.filter(it => !isAlt(it));
+  const alts = items.filter(isAlt);
+  const target = +buildProposalView(bundle).finalTotal || 0;
+  const raw = main.reduce((a, it) => a + (+it.scheduled_value || 0), 0);
+  const scale = raw > 0 ? target / raw : 1;
+  main.forEach(it => { it.scheduled_value = (+it.scheduled_value || 0) * scale; });
+  if (raw > 0) footToWholeDollars(main, 'scheduled_value', target);
+  alts.forEach(it => { it.scheduled_value = Math.round(+it.scheduled_value || 0); });
+  return [...main, ...alts].map((it, i) => ({ ...it, position: i }));
+}
 
 router.use(requireAuth);
 
@@ -67,7 +88,7 @@ function processOnlyItems(bundle) {
     });
   }
 
-  return items.map((it, i) => ({ ...it, position: i }));
+  return footToContract(items, bundle);
 }
 
 // Build auto-generated SOV line items from computed totals.
@@ -163,21 +184,13 @@ function autoGenerateItems(bundle) {
     });
   }
 
-  // If a price-to-win override is set, scale the scheduled values so the SOV
-  // foots to the quoted contract amount instead of the cost-plus total.
-  const view = buildProposalView(bundle);
-  const scale = (view.priceToWin != null && view.computedTotal > 0)
-    ? (view.finalTotal / view.computedTotal)
-    : 1;
-
   // Drop lines hidden on the proposal, then zero-value items (except the first
-  // shown line), apply the price-to-win scale, then strip the internal _key.
+  // shown line), strip the internal _key, then foot to the quoted price.
   const out = items
     .filter(it => !(it._key && isHidden(it._key)))
     .filter((it, i) => i === 0 || it.scheduled_value > 0)
-    .map((it, i) => { const { _key, ...rest } = it; return { ...rest, scheduled_value: (+rest.scheduled_value || 0) * scale, position: i }; });
-  // Whole-dollar SOV lines that still foot to the contract total.
-  return footSovItems(out);
+    .map(it => { const { _key, ...rest } = it; return rest; });
+  return footToContract(out, bundle);
 }
 
 // GET /api/estimates/:id/sov — list items, auto-generate if none exist yet
@@ -364,3 +377,6 @@ router.get('/excel', async (req, res) => {
 });
 
 module.exports = router;
+// Shared with routes/estimates.js so the SOV written when a bid is marked Won,
+// the tracker's SOV feed and the SOV tab all come from one generator.
+module.exports.autoGenerateItems = autoGenerateItems;

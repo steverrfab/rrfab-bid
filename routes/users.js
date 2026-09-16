@@ -6,8 +6,23 @@ const { generateToken, requireAdmin } = require('../lib/auth');
 const { sendInvite, sendPasswordReset } = require('../lib/email');
 const { PAGES, cleanIncoming, effectivePages, effectiveTrackerRole } = require('../lib/access');
 
-// All user management routes require admin role
-router.use(requireAdmin);
+// All user management routes require admin role, with one exception: anyone
+// may update their own name and phone from the Profile page.
+router.use((req, res, next) => {
+  const selfEdit = req.method === 'PUT'
+    && req.user && /^\d+$/.test(req.path.slice(1))
+    && Number(req.path.slice(1)) === req.user.userId
+    && Object.keys(req.body || {}).every(k => k === 'name' || k === 'phone');
+  if (selfEdit) return next();
+  return requireAdmin(req, res, next);
+});
+
+// Only a superadmin may change anything about another admin or superadmin
+// account. Admins manage estimators.
+function outranks(actor, target) {
+  if (actor.role === 'superadmin') return true;
+  return target.role === 'estimator';
+}
 
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'https://bid.rrfabrication.org';
 
@@ -52,6 +67,11 @@ router.post('/invite', async (req, res) => {
   if (user && user.password_hash && user.active) {
     return res.status(409).json({ error: 'That email already has an active account.' });
   }
+  // Re-inviting clears the password and sets the role, so it counts as
+  // changing that account.
+  if (user && !outranks(req.user, user)) {
+    return res.status(403).json({ error: 'Only the superadmin can re-invite an admin or superadmin account.' });
+  }
 
   if (!user) {
     db.prepare("INSERT INTO users (email, name, role, active) VALUES (?, ?, ?, 0)")
@@ -92,7 +112,12 @@ router.put('/:id', (req, res) => {
   // Admins can manage roles/active status
   // Superadmin can reset passwords
 
-  if (id === req.user.userId && active === 0) {
+  const targetRow = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
+  if (!targetRow) return res.status(404).json({ error: 'User not found.' });
+  if (id !== req.user.userId && !outranks(req.user, targetRow)) {
+    return res.status(403).json({ error: 'Only the superadmin can change an admin or superadmin account.' });
+  }
+  if (id === req.user.userId && (active === 0 || active === false)) {
     return res.status(400).json({ error: 'You cannot deactivate your own account.' });
   }
   if (role !== undefined) {
@@ -205,6 +230,9 @@ router.post('/access-requests/:id/approve', async (req, res) => {
   const id = Number(req.params.id);
   const role = req.body?.role || 'estimator';
   if (!['admin', 'estimator'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+  if (role !== 'estimator' && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Only the superadmin can approve someone as an admin.' });
+  }
 
   const accessReq = db.prepare("SELECT * FROM access_requests WHERE id = ? AND status = 'pending'").get(id);
   if (!accessReq) return res.status(404).json({ error: 'Request not found or already handled.' });
@@ -213,6 +241,9 @@ router.post('/access-requests/:id/approve', async (req, res) => {
 
   // Create or refresh user (same logic as /invite)
   let user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE').get(emailClean);
+  if (user && !(user.password_hash && user.active) && !outranks(req.user, user)) {
+    return res.status(403).json({ error: 'Only the superadmin can re-invite an admin or superadmin account.' });
+  }
   if (user && user.password_hash && user.active) {
     // Already active — mark approved and return
     db.prepare("UPDATE access_requests SET status = 'approved' WHERE id = ?").run(id);

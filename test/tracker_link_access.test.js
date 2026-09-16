@@ -27,7 +27,13 @@ db.exec(`INSERT INTO users (id, email, name, role, active, tracker_role) VALUES
   (24,'adm2@x.test','Ada','admin',1,'none')`);
 db.exec(`INSERT INTO estimates (id, project_name, job_number, bid_number, client_gc, status, created_by, is_alternate, confirmed, oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode, price_to_win)
   VALUES (10,'Ridgeview Clinic','2201-0001','1300','Barton Malow','Won',23,0,1,0.05,0,0.10,0,0.06,'full',250000),
-         (11,'Maple St Warehouse',NULL,'1301','Turner','Submitted',23,0,1,0.05,0,0.10,0,0.06,'full',NULL)`);
+         (11,'Maple St Warehouse',NULL,'1301','Turner','Submitted',23,0,1,0.05,0,0.10,0,0.06,'full',NULL),
+         (12,'PTW Job',NULL,'1302','Whiting','Submitted',23,0,1,0.05,0,0.10,0,0.06,'full',123457)`);
+db.exec(`INSERT INTO estimates (id, project_name, bid_number, client_gc, status, created_by, is_alternate, confirmed, oh_rate, contingency_rate, profit_rate, cgl_rate, sales_tax_rate, tax_mode, fab_mh, fab_rate, freight, freight_qty)
+  VALUES (14,'No PTW Job','1304','Clark','Submitted',23,0,1,0.05,0,0.10,0,0.06,'full',100,50,2000,1)`);
+db.exec(`UPDATE estimates SET fab_mh = 100, fab_rate = 50, freight = 2000, freight_qty = 1 WHERE id = 12`);
+db.exec(`INSERT INTO estimates (id, project_name, bid_number, client_gc, status, created_by, is_alternate, confirmed, job_type, po_op_pct, po_tax_pct)
+  VALUES (13,'Process Job','1303','Devon','Submitted',23,0,1,'process_only',0.1,0.06)`);
 db.close();
 
 // ---- fake tracker ----
@@ -277,6 +283,62 @@ async function run() {
   t('feedback refuses a wrong key', r.status === 403, r.status);
   r = await fetch(B + '/api/feedback/admin/pending?key=fk');
   t('feedback accepts its key', r.status === 200, r.status);
+
+  console.log('\n--- 6b. schedule of values written on Won matches the quoted price ---');
+  r = await call('est', 'PUT', '/api/estimates/12', { status: 'Won', job_number: '3300-0001' });
+  t('price-to-win bid marked Won', r.status === 200, r.body && r.body.error);
+  r = await call('est', 'GET', '/api/estimates/12/sov');
+  const sovTotal = (r.body || []).reduce((a, x) => a + (+x.scheduled_value || 0), 0);
+  t('SOV foots to the price to win (123,457)', Math.round(sovTotal) === 123457, { sovTotal, rows: r.body });
+  r = await call('est', 'GET', '/api/estimates/14');
+  const quoted14 = r.body.computed.totalBid;
+  r = await call('est', 'GET', '/api/estimates/14/sov');
+  const sov14 = r.body.reduce((a, x) => a + x.scheduled_value, 0);
+  t('SOV tab foots to the whole-dollar bid total', sov14 === quoted14 && r.body.every(x => Number.isInteger(x.scheduled_value)), { sov14, quoted14 });
+  r = await call('est', 'PUT', '/api/estimates/13/process-lines', { rows: [{ name: 'Beams', line_type: 'manual', qty: 1, proc_manual: 1000 }] });
+  t('process-only lines saved', r.status === 200, r.status);
+  r = await call('est', 'PUT', '/api/estimates/13', { status: 'Won', job_number: 'P-301' });
+  t('process-only bid marked Won', r.status === 200, r.body && r.body.error);
+  r = await fetch(B + '/api/estimates/feed/sov/13', { headers: { 'X-Integration-Key': KEY } });
+  j = await r.json();
+  const poTotal = j.sov.reduce((a, x) => a + x.scheduled_value, 0);
+  t('process-only job gets a real SOV at Won (1,000 + 10% = 1,100)', Math.round(poTotal) === 1100 && j.sov.length > 0, j.sov);
+
+  console.log('\n--- 6c. a bad value no longer crashes the server ---');
+  r = await call('est', 'PUT', '/api/estimates/10', { project_name: { nested: true } });
+  t('bad value gets a 400', r.status === 400, r);
+  r = await fetch(B + '/api/health');
+  t('server still running', r.status === 200, r.status);
+
+  console.log('\n--- 6d. accounts: lockout, role changes, profile ---');
+  r = await call('est', 'PUT', '/api/users/23', { name: 'Esti M', phone: '410-555-0199' });
+  t('an estimator can save their own profile', r.status === 200, r);
+  r = await call('est', 'PUT', '/api/users/23', { name: 'Esti', role: 'admin' });
+  t('but not change their own role', r.status === 403, r);
+  r = await call('est', 'PUT', '/api/users/22', { name: 'Hacked' });
+  t('or anyone else', r.status === 403, r);
+  r = await call('adm', 'PUT', '/api/users/21', { active: 0 });
+  t('an admin cannot deactivate the superadmin', r.status === 403, r);
+  r = await call('adm', 'PUT', '/api/users/24', { role: 'estimator' });
+  t('an admin cannot demote another admin', r.status === 403, r);
+  r = await call('adm', 'POST', '/api/users/invite', { email: 'adm2@x.test', role: 'estimator' });
+  t('an admin cannot re-invite an admin (409 active or 403)', r.status === 403 || r.status === 409, r);
+  r = await call('boss', 'PUT', '/api/users/24', { role: 'estimator' });
+  t('superadmin demotes an admin', r.status === 200, r);
+  r = await call('adm2', 'GET', '/api/users');
+  t('the demotion applies on their very next request', r.status === 403, r.status);
+  r = await call('boss', 'PUT', '/api/users/22', { active: 0 });
+  t('superadmin deactivates a user', r.status === 200, r);
+  r = await call('adm', 'GET', '/api/auth/me');
+  t('deactivated user is locked out at once', r.status === 401, r.status);
+  r = await call('adm', 'GET', '/api/estimates');
+  t('everywhere', r.status === 401, r.status);
+  r = await call('boss', 'PUT', '/api/users/21', { active: false });
+  t('nobody can deactivate themselves', r.status === 400, r);
+  await call('boss', 'PUT', '/api/users/22', { active: 1 });
+  r = await call('adm', 'GET', '/api/auth/me');
+  t('reactivated user is back in', r.status === 200, r.status);
+  await call('boss', 'PUT', '/api/users/24', { role: 'admin' });
 
   console.log('\n--- 7. settings survive a restart (they used to reset on every deploy) ---');
   await call('boss', 'PUT', '/api/users/23', { page_access: ['estimates', 'tax'], tracker_role: 'accounting', phone: '410-555-0100' });
