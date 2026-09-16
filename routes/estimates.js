@@ -1711,14 +1711,21 @@ router.get('/:id/tracker-status', async (req, res) => {
     const p = buildWonJobPayload({ ...bundle, estimate: { ...e, bid_type: 'real', is_alternate: 0, confirmed: 1 } });
     estCost = p ? p.cost : null;
   } catch { estCost = null; }
-  const estimate = { contract_amount: Math.round(+sellPretax(bundle) || 0), cost: estCost };
+  // Shop hours the bid was priced with: fabrication man-hours on a full bid,
+  // line plus shop labor hours on a process-only bid.
+  const isPO = e.job_type === 'process_only';
+  const pc = bundle.processComputed || {};
+  const shopHours = isPO ? (+pc.totHrs || 0) : (+e.fab_mh || 0);
+  const shopLabor = isPO ? (+pc.laborCost || 0) : (+(bundle.computed || {}).fabHours || 0);
+  const estimate = { contract_amount: Math.round(+sellPretax(bundle) || 0), cost: estCost, shop_hours: shopHours, shop_labor: Math.round(shopLabor) };
   try {
     const t = await fetchTrackerJobStatus(jobNumber);
     if (!t || !t.found) return res.json({ linked: false, reason: 'not_in_tracker', job_number: jobNumber, estimate });
     const me = db.prepare('SELECT tracker_role FROM users WHERE id = ?').get(req.user.userId) || {};
     const seesMoney = isAdminish(req.user.role) || TRACKER_MONEY_ROLES.includes(me.tracker_role);
     if (!seesMoney) {
-      for (const k of ['billed_to_date', 'billed_pct', 'retainage_held', 'collected', 'actual_cost', 'pay_apps']) delete t[k];
+      for (const k of ['billed_to_date', 'billed_pct', 'retainage_held', 'collected', 'actual_cost', 'pay_apps', 'shop_labor_cost']) delete t[k];
+      delete estimate.shop_labor;
     }
     res.json({ linked: true, job_number: jobNumber, estimate, tracker: t, money: seesMoney });
   } catch (err) {

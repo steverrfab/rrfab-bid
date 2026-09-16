@@ -726,5 +726,33 @@ function trackerFeedRows(jobNumber) {
   return out;
 }
 
+// A change order priced in the full estimator gets its price from its own
+// estimates row, which is edited through the normal estimate screens (takeoff,
+// cost inputs, wage rates...). Any successful change to that row calls this.
+// It waits a few seconds so a burst of edits sends one update, then sends the
+// change order's current price to the tracker if it has gone out.
+const pricingTimers = new Map();
+function priceChangedOnEstimate(estimateId) {
+  const id = Number(estimateId);
+  if (!id) return;
+  let row;
+  try { row = db.prepare('SELECT change_order_id FROM estimates WHERE id = ?').get(id); } catch { return; }
+  if (!row || row.change_order_id == null) return;   // a real bid, nothing to do
+  const coId = row.change_order_id;
+  clearTimeout(pricingTimers.get(coId));
+  const t = setTimeout(() => {
+    pricingTimers.delete(coId);
+    try {
+      const co = db.prepare('SELECT * FROM change_orders WHERE id = ? AND deleted_at IS NULL').get(coId);
+      if (co && (co.status === 'Submitted' || co.status === 'Approved')) syncToTracker(hydrate(co));
+    } catch (e) {
+      console.error('[change orders] price sync skipped:', e.message);
+    }
+  }, 3000);
+  if (t.unref) t.unref();
+  pricingTimers.set(coId, t);
+}
+
 module.exports = router;
 module.exports.trackerFeedRows = trackerFeedRows;
+module.exports.priceChangedOnEstimate = priceChangedOnEstimate;

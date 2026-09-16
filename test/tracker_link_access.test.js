@@ -46,7 +46,7 @@ const tracker = http.createServer((req, res) => {
       const job = new URL(req.url, 'http://x').searchParams.get('job_number');
       if (job !== '2201-0001') { res.writeHead(404); return res.end('{}'); }
       res.writeHead(200, { 'content-type': 'application/json' });
-      return res.end(JSON.stringify({ found: true, job_number: job, status: 'In Fabrication', contract_sum: 262000, actual_cost: 150000 }));
+      return res.end(JSON.stringify({ found: true, job_number: job, status: 'In Fabrication', contract_sum: 262000, actual_cost: 150000, shop_hours: 312.5, shop_labor_cost: 11000 }));
     }
     res.writeHead(404); res.end('{}');
   });
@@ -176,6 +176,28 @@ async function run() {
   r = await fetch(B + '/api/estimates/feed/change-orders');
   t('feed refuses without the key', r.status === 401, r.status);
 
+  console.log('\n--- 3b. estimator-priced change order sends its new price ---');
+  r = await call('est', 'POST', '/api/change-orders', { title: 'Priced in the estimator', estimate_id: 10, co_number: 'CO-08', pricing_mode: 'estimator' });
+  const estCo = r.body;
+  t('estimator change order created', r.status === 201 && estCo.estimator_estimate_id, r.body);
+  await call('est', 'PUT', '/api/change-orders/' + estCo.id, { status: 'Approved' });
+  await wait(300);
+  let n0 = got.filter(p => p.co_id === estCo.id).length;
+  r = await call('est', 'PUT', '/api/estimates/' + estCo.estimator_estimate_id, { price_to_win: 5000 });
+  t('pricing saved', r.status === 200, r.status);
+  await call('est', 'PUT', '/api/estimates/' + estCo.estimator_estimate_id, { price_to_win: 6000 });
+  await wait(1000);
+  t('nothing sent while edits are still coming', got.filter(p => p.co_id === estCo.id).length === n0, got.filter(p => p.co_id === estCo.id));
+  await wait(3000);
+  const priced = got.filter(p => p.co_id === estCo.id);
+  t('one update sent with the new price', priced.length === n0 + 1 && priced[priced.length - 1].amount === 6000 && priced[priced.length - 1].status === 'Approved', priced);
+  n0 = got.length;
+  await call('est', 'PUT', '/api/estimates/10', { notes: 'real bid edit' });
+  await wait(3500);
+  t('editing a real bid sends nothing', got.length === n0, got.slice(n0));
+  await call('est', 'DELETE', '/api/change-orders/' + estCo.id);
+  await wait(300);
+
   r = await call('est', 'PUT', '/api/change-orders/' + coId, { status: 'Rejected' });
   await wait(300);
   last = got[got.length - 1];
@@ -200,11 +222,13 @@ async function run() {
   t('open bid is not linked', r.body.linked === false && r.body.reason === 'not_won', r.body);
   r = await call('est', 'GET', '/api/estimates/10/tracker-status');
   t('estimator with PM tracker access sees billing', r.body.money === true && r.body.tracker.actual_cost === 150000, r.body);
+  t('shop hours and labor come through', r.body.tracker.shop_hours === 312.5 && r.body.tracker.shop_labor_cost === 11000, r.body.tracker);
+  t('bid shop hours included', r.body.estimate.shop_hours === 0 && 'shop_labor' in r.body.estimate, r.body.estimate);
   r = await call('adm2', 'GET', '/api/estimates/10/tracker-status');
   t('admins can read it too', r.status === 200 && r.body.money === true, r.body);
   await call('boss', 'PUT', '/api/users/23', { tracker_role: 'shop' });
   r = await call('est', 'GET', '/api/estimates/10/tracker-status');
-  t('shop-level tracker access sees stage, not billing', r.body.linked && r.body.money === false && r.body.tracker.status === 'In Fabrication' && !('actual_cost' in r.body.tracker), r.body);
+  t('shop-level tracker access sees stage, not billing', r.body.linked && r.body.money === false && r.body.tracker.status === 'In Fabrication' && !('actual_cost' in r.body.tracker) && r.body.tracker.shop_hours === 312.5 && !('shop_labor_cost' in r.body.tracker) && !('shop_labor' in r.body.estimate), r.body);
   await call('boss', 'PUT', '/api/users/23', { tracker_role: 'pm' });
 
   console.log('\n--- 4b. a role change resets page access ---');

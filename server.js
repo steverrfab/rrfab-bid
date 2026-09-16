@@ -37,6 +37,16 @@ app.get('/api/health', (req, res) => {
 // ---- Routes ----
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/aisc', require('./routes/aisc'));
+// When the pricing behind a submitted or approved change order is edited, send
+// the new price to the Project Tracker (see routes/change_orders.js).
+app.use('/api/estimates/:id', (req, res, next) => {
+  if (req.method !== 'GET' && /^\d+$/.test(String(req.params.id))) {
+    res.on('finish', () => {
+      if (res.statusCode < 400) require('./routes/change_orders').priceChangedOnEstimate(req.params.id);
+    });
+  }
+  next();
+});
 app.use('/api/estimates', require('./routes/estimates').router);
 // Estimate subrouters — estimators can only access their own estimates
 app.use('/api/estimates/:id/wages',          estimateOwnershipCheck, require('./routes/wages'));
