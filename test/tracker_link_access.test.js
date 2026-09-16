@@ -167,6 +167,7 @@ async function run() {
   t('Submitted is sent as Pending', last && last.status === 'Pending' && !last.removed, last);
   t('job number and typed number carried', last && last.job_number === '2201-0001' && last.co_number === 'CO-07', last);
   t('amount is the pre-tax sell (10,000 +5% +10% = 11,550)', last && last.amount === 11550, last);
+  t('cost carried for the tracker margin (10,000)', last && last.cost === 10000, last);
   r = await call('est', 'PUT', '/api/change-orders/' + coId, { status: 'Approved' });
   await wait(300);
   last = got[got.length - 1];
