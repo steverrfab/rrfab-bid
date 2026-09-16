@@ -11,7 +11,9 @@ const { buildProposalView } = require('../lib/proposal_lines');
 const { footSovItems } = require('../lib/round');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendResubmitNotification, sendWonNotification } = require('../lib/email');
-const { buildWonJobPayload, pushWonJobToTracker } = require('../lib/tracker_push');
+const { buildWonJobPayload, pushWonJobToTracker, fetchTrackerJobStatus } = require('../lib/tracker_push');
+const { canSee, DENIED } = require('../lib/access');
+const { requireIntegrationKey } = require('../lib/integration_key');
 const { buildSnapshot, diffSnapshots } = require('../lib/resubmit_diff');
 const { summaryRow } = require('../lib/report_data');
 
@@ -298,6 +300,7 @@ router.get('/', (req, res) => {
 
 // ---- TRASH: list soft-deleted bids (restorable) ----
 router.get('/deleted', (req, res) => {
+  if (!canSee(req, 'trash')) return res.status(403).json(DENIED);
   const base = `
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc,
            e.status, e.job_type, e.bid_type, e.deleted_at, e.updated_at, e.created_by,
@@ -386,8 +389,9 @@ router.get('/activity', (req, res) => {
 // Sales tax owed per Won job (admin only). Sales tax is a pass-through we
 // collect and remit, so the dashboard reports pre-tax; this is the one place
 // tax is totaled. Mirrors the same visibility filters as /summary.
+// Who sees it is set per user on the Users screen (admins by default).
 router.get('/tax-summary', (req, res) => {
-  if (!isAdminish(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  if (!canSee(req, 'tax')) return res.status(403).json(DENIED);
   const idRows = db.prepare("SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL)").all();
   const rows = [];
   for (const { id } of idRows) {
@@ -765,6 +769,7 @@ router.delete('/:id', (req, res) => {
 
 // ---- RESTORE (undo soft-delete) ----
 router.post('/:id/restore', (req, res) => {
+  if (!canSee(req, 'trash')) return res.status(403).json(DENIED);
   const id = Number(req.params.id);
   const est = db.prepare('SELECT id, created_by, deleted_at FROM estimates WHERE id = ?').get(id);
   if (!est || !est.deleted_at) return res.status(404).json({ error: 'not found' });
@@ -1631,12 +1636,7 @@ router.post('/:id/process-import/kiss', upload.single('file'), (req, res) => {
 // Protected by a shared secret (TRACKER_KEY), not a user login. One row per
 // Won base bid that has a job number. contract_amount mirrors dashboard
 // revenue (the sell price the job was won at, before sales tax).
-router.get('/feed/won-jobs', (req, res) => {
-  const expected = process.env.TRACKER_KEY || '';
-  const provided = req.get('X-Integration-Key') || '';
-  if (!expected || provided !== expected) {
-    return res.status(401).json({ error: 'invalid integration key' });
-  }
+router.get('/feed/won-jobs', requireIntegrationKey('TRACKER_KEY'), (req, res) => {
   const idRows = db.prepare(
     "SELECT id FROM estimates WHERE status = 'Won' AND deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL AND (bid_type = 'real' OR bid_type IS NULL) AND job_number IS NOT NULL AND job_number != ''"
   ).all();
@@ -1655,12 +1655,7 @@ router.get('/feed/won-jobs', (req, res) => {
 // the estimate has never opened its SOV tab), in the shape the Project
 // Tracker's sync-sov expects: { sov: [ { item_no, description,
 // scheduled_value, position } ] }.
-router.get('/feed/sov/:id', (req, res) => {
-  const expected = process.env.TRACKER_KEY || '';
-  const provided = req.get('X-Integration-Key') || '';
-  if (!expected || provided !== expected) {
-    return res.status(401).json({ error: 'invalid integration key' });
-  }
+router.get('/feed/sov/:id', requireIntegrationKey('TRACKER_KEY'), (req, res) => {
   const id = Number(req.params.id);
   const est = db.prepare('SELECT id FROM estimates WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!est) return res.status(404).json({ error: 'not found' });
@@ -1679,6 +1674,61 @@ router.get('/feed/sov/:id', (req, res) => {
     position: it.position != null ? it.position : i,
   }));
   res.json({ sov });
+});
+
+// ---- INTEGRATION FEED: change orders for the Project Tracker (read-only) ----
+// Same TRACKER_KEY as the other feeds. Every change order the tracker should
+// hold right now (Submitted or Approved, on a Won job). The tracker pulls this
+// when a job lands and again every night, so a push that was missed is caught
+// up. ?job_number= narrows it to one job.
+router.get('/feed/change-orders', requireIntegrationKey('TRACKER_KEY'), (req, res) => {
+  const { trackerFeedRows } = require('./change_orders');
+  const jobNumber = String(req.query.job_number || '').trim();
+  res.json({ change_orders: trackerFeedRows(jobNumber || null), complete: !jobNumber });
+});
+
+// ---- PROJECT TRACKER STATUS for one won bid (Project tab) ----
+// Read-only. Ownership is enforced by router.param above. Asks the tracker for
+// the job's stage, billing and actual cost, and adds the bid's own estimated
+// cost so the screen can put estimate and actual side by side.
+// Billing and actual cost are money the tracker hides from shop users, so they
+// are only included for bid-tool admins and people whose tracker access is PM,
+// accounting or admin. Everyone else who can open the bid sees the stage and
+// the contract.
+const TRACKER_MONEY_ROLES = ['pm', 'accounting', 'admin'];
+router.get('/:id/tracker-status', async (req, res) => {
+  try {
+  const id = Number(req.params.id);
+  const bundle = loadFullEstimate(id);
+  if (!bundle || !bundle.estimate) return res.status(404).json({ error: 'not found' });
+  const e = bundle.estimate;
+  const jobNumber = String(e.job_number || '').trim();
+  if (e.status !== 'Won' || !jobNumber) {
+    return res.json({ linked: false, reason: 'not_won' });
+  }
+  let estCost = null;
+  try {
+    const p = buildWonJobPayload({ ...bundle, estimate: { ...e, bid_type: 'real', is_alternate: 0, confirmed: 1 } });
+    estCost = p ? p.cost : null;
+  } catch { estCost = null; }
+  const estimate = { contract_amount: Math.round(+sellPretax(bundle) || 0), cost: estCost };
+  try {
+    const t = await fetchTrackerJobStatus(jobNumber);
+    if (!t || !t.found) return res.json({ linked: false, reason: 'not_in_tracker', job_number: jobNumber, estimate });
+    const me = db.prepare('SELECT tracker_role FROM users WHERE id = ?').get(req.user.userId) || {};
+    const seesMoney = isAdminish(req.user.role) || TRACKER_MONEY_ROLES.includes(me.tracker_role);
+    if (!seesMoney) {
+      for (const k of ['billed_to_date', 'billed_pct', 'retainage_held', 'collected', 'actual_cost', 'pay_apps']) delete t[k];
+    }
+    res.json({ linked: true, job_number: jobNumber, estimate, tracker: t, money: seesMoney });
+  } catch (err) {
+    const reason = err.code === 'NOT_CONFIGURED' ? 'not_configured' : 'unreachable';
+    res.json({ linked: false, reason, message: err.message, job_number: jobNumber, estimate });
+  }
+  } catch (err) {
+    console.error('[tracker-status] failed:', err);
+    res.status(500).json({ error: 'Could not load the tracker status.' });
+  }
 });
 
 // seedProcessOnlyDefaults is exported so a change order created against a

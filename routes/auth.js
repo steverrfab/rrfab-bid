@@ -5,6 +5,7 @@ const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
 const { sendAccessRequestNotification } = require('../lib/email');
+const { effectivePages } = require('../lib/access');
 
 // POST /api/auth/login  { email, password }
 router.post('/login', (req, res) => {
@@ -19,15 +20,17 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: user.tracker_role } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: user.tracker_role, pages: effectivePages(user) } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, phone FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, phone, page_access FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
-  res.json(user);
+  // pages: the menu items this person may see (see lib/access.js).
+  const { page_access, ...rest } = user;
+  res.json({ ...rest, pages: effectivePages(user) });
 });
 
 // POST /api/auth/tracker-sso: mint a short-lived signed token that logs the
@@ -47,7 +50,11 @@ router.post('/tracker-sso', (req, res) => {
     key,
     { algorithm: 'HS256', expiresIn: 120 }
   );
-  res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` });
+  // Optional landing spot inside the tracker, e.g. "/?job=1234-5678" to open
+  // that job. Only a same-site path is passed along; anything else is dropped.
+  const next = String((req.body && req.body.next) || '');
+  const safeNext = /^\/(?![\/\\])[^\s]*$/.test(next) ? next : '';
+  res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` + (safeNext ? '&next=' + encodeURIComponent(safeNext) : '') });
 });
 
 // GET /api/auth/invite/:token  — validate token, return email (public)
@@ -78,9 +85,10 @@ router.post('/invite/:token/accept', (req, res) => {
   db.prepare("UPDATE invites SET used_at = datetime('now') WHERE id = ?")
     .run(invite.id);
 
-  const user = db.prepare('SELECT id, email, name, role, tracker_role FROM users WHERE id = ?').get(invite.user_id);
+  const row = db.prepare('SELECT id, email, name, role, tracker_role, page_access FROM users WHERE id = ?').get(invite.user_id);
+  const { page_access, ...user } = row;
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user });
+  res.json({ token, user: { ...user, pages: effectivePages(row) } });
 });
 
 // POST /api/auth/change-password  — authenticated user changes their own password

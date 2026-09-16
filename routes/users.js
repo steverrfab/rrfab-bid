@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const { generateToken, requireAdmin } = require('../lib/auth');
 const { sendInvite, sendPasswordReset } = require('../lib/email');
+const { PAGES, cleanIncoming, effectivePages } = require('../lib/access');
 
 // All user management routes require admin role
 router.use(requireAdmin);
@@ -18,13 +19,21 @@ const TRACKER_ROLES = ['none', 'shop', 'pm', 'accounting', 'admin'];
 router.get('/', (req, res) => {
   const users = db.prepare(`
     SELECT
-      u.id, u.email, u.name, u.role, u.active, u.created_at, u.tracker_role,
+      u.id, u.email, u.name, u.role, u.active, u.created_at, u.tracker_role, u.page_access,
       (SELECT used_at  FROM invites WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as invite_used_at,
       (SELECT expires_at FROM invites WHERE user_id = u.id AND used_at IS NULL
          AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1) as pending_invite_expires
     FROM users u ORDER BY u.created_at ASC
   `).all();
-  res.json({ users });
+  // page_access: the stored custom list (null = role defaults).
+  // pages: what the person actually sees. PAGES: the list the screen offers.
+  for (const u of users) {
+    let custom = null;
+    try { custom = u.page_access ? JSON.parse(u.page_access) : null; } catch { custom = null; }
+    u.pages = effectivePages(u);
+    u.page_access = Array.isArray(custom) ? custom : null;
+  }
+  res.json({ users, pages: PAGES });
 });
 
 // POST /api/users/invite  { email, name?, role }
@@ -49,8 +58,8 @@ router.post('/invite', async (req, res) => {
     user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE').get(emailClean);
   } else {
     // Re-invite: refresh role/name, clear old password so they must reset
-    db.prepare("UPDATE users SET role = ?, name = ?, password_hash = NULL, active = 0 WHERE id = ?")
-      .run(role, name.trim() || user.name, user.id);
+    db.prepare("UPDATE users SET role = ?, name = ?, password_hash = NULL, active = 0, page_access = CASE WHEN role = ? THEN page_access ELSE NULL END WHERE id = ?")
+      .run(role, name.trim() || user.name, role, user.id);
   }
 
   // Expire any open invites
@@ -75,6 +84,8 @@ router.put('/:id', (req, res) => {
   const { signToken, hashPassword } = require('../lib/auth');
   const id = Number(req.params.id);
   const { role, active, password, name, phone, tracker_role } = req.body || {};
+  const hasPageAccess = Object.prototype.hasOwnProperty.call(req.body || {}, 'page_access');
+  let pageAccess;
 
   // Users can only update their own profile (name, phone)
   // Admins can manage roles/active status
@@ -100,6 +111,27 @@ router.put('/:id', (req, res) => {
     }
   }
 
+  // Page access: which menu pages this person sees. null = role defaults.
+  // Superadmin always sees everything. An admin may set it for estimators; the
+  // superadmin may set it for admins and estimators. Nobody edits their own.
+  if (hasPageAccess) {
+    pageAccess = cleanIncoming(req.body.page_access);
+    if (pageAccess === undefined) {
+      return res.status(400).json({ error: 'Invalid page list.' });
+    }
+    if (id === req.user.userId) {
+      return res.status(400).json({ error: 'You cannot change your own page access.' });
+    }
+    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
+    if (!target) return res.status(404).json({ error: 'User not found.' });
+    if (target.role === 'superadmin') {
+      return res.status(400).json({ error: 'A superadmin always sees every page.' });
+    }
+    if (target.role !== 'estimator' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only the superadmin can change an admin\'s page access.' });
+    }
+  }
+
   // Only superadmin can reset passwords
   if (password !== undefined) {
     if (req.user.role !== 'superadmin') {
@@ -118,6 +150,13 @@ router.put('/:id', (req, res) => {
   if (name !== undefined)   { sets.push('name = ?');   params.push(name ? name.trim() : null); }
   if (phone !== undefined)  { sets.push('phone = ?');  params.push(phone ? phone.trim() : null); }
   if (tracker_role !== undefined) { sets.push('tracker_role = ?'); params.push(tracker_role); }
+  if (hasPageAccess) { sets.push('page_access = ?'); params.push(pageAccess === null ? null : JSON.stringify(pageAccess)); }
+  // A role change puts page access back to the new role's defaults, so a
+  // custom list written for one role never carries over to another.
+  if (role !== undefined && !hasPageAccess) {
+    const cur = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
+    if (cur && cur.role !== role) sets.push('page_access = NULL');
+  }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
 
   params.push(id);
@@ -183,8 +222,8 @@ router.post('/access-requests/:id/approve', async (req, res) => {
       .run(emailClean, accessReq.name, role);
     user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE').get(emailClean);
   } else {
-    db.prepare("UPDATE users SET role = ?, name = ?, password_hash = NULL, active = 0 WHERE id = ?")
-      .run(role, accessReq.name || user.name, user.id);
+    db.prepare("UPDATE users SET role = ?, name = ?, password_hash = NULL, active = 0, page_access = CASE WHEN role = ? THEN page_access ELSE NULL END WHERE id = ?")
+      .run(role, accessReq.name || user.name, role, user.id);
   }
 
   db.prepare("UPDATE invites SET used_at = datetime('now') WHERE user_id = ? AND used_at IS NULL").run(user.id);

@@ -26,6 +26,7 @@ const path = require('path');
 const os = require('os');
 const router = express.Router();
 const db = require('../db');
+const { integrationKeyOk } = require('../lib/integration_key');
 
 // The per-request cleanup below handles a finished download and an abandoned
 // one alike. What it cannot handle is the process being killed mid-snapshot,
@@ -45,19 +46,10 @@ const db = require('../db');
   }
 })();
 
+// Shared, timing-safe check (lib/integration_key.js). Refuses everything
+// while BACKUP_KEY is unset.
 function keyOk(req) {
-  const expected = process.env.BACKUP_KEY || '';
-  const provided = req.get('X-Integration-Key') || '';
-  if (!expected || !provided) return false;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(provided);
-  // timingSafeEqual throws on a length mismatch, so compare lengths first and
-  // still run the comparison, to keep the timing flat either way.
-  if (a.length !== b.length) {
-    crypto.timingSafeEqual(a, a);
-    return false;
-  }
-  return crypto.timingSafeEqual(a, b);
+  return integrationKeyOk(req, 'BACKUP_KEY');
 }
 
 // ---- GET /api/backup/db ----

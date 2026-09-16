@@ -21,6 +21,11 @@ function runMigrations() {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
   for (const f of files) {
+    // 016 used to rebuild the users table in SQL, which ran on EVERY startup
+    // and silently dropped every users column added after it (tracker_role,
+    // phone, page_access), so those reset to their defaults on each deploy.
+    // The rebuild now lives here and only runs when the table still needs it.
+    if (f === '016_superadmin.sql') allowSuperadminRole();
     let sql = fs.readFileSync(path.join(migrationsDir, f), 'utf8');
     // Strip line comments before splitting so a leading "-- ..." does not make
     // an entire CREATE TABLE statement look like a pure comment.
@@ -43,6 +48,43 @@ function runMigrations() {
     }
     console.log('[db] migration applied: ' + f);
   }
+}
+
+// Widens users.role to allow 'superadmin'. SQLite can only change a CHECK
+// constraint by rebuilding the table. Guarded on the real schema, so it runs
+// once on a brand-new database and never again: any database that already
+// allows 'superadmin' is left exactly as it is, every column and value intact.
+function allowSuperadminRole() {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+  if (!row || /'superadmin'/.test(row.sql || '')) return;
+  const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  const base = ['id', 'email', 'name', 'role', 'password_hash', 'active', 'created_at'];
+  const extra = cols.filter(c => !base.includes(c));
+  if (extra.length) {
+    // Only a pre-016 table should ever get here, and that has no extra columns.
+    // Refuse rather than drop anything.
+    throw new Error('users table needs the superadmin rebuild but has unexpected columns: ' + extra.join(', '));
+  }
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.exec(`CREATE TABLE users_new (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        email         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        name          TEXT    NOT NULL DEFAULT '',
+        role          TEXT    NOT NULL DEFAULT 'estimator' CHECK (role IN ('admin','estimator','superadmin')),
+        password_hash TEXT    DEFAULT NULL,
+        active        INTEGER NOT NULL DEFAULT 0,
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec('INSERT INTO users_new SELECT id, email, name, role, password_hash, active, created_at FROM users');
+      db.exec('DROP TABLE users');
+      db.exec('ALTER TABLE users_new RENAME TO users');
+    })();
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+  console.log('[db] users table rebuilt to allow the superadmin role');
 }
 
 function seedAisc() {

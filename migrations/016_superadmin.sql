@@ -1,23 +1,11 @@
--- Expand role constraint to include 'superadmin', then promote Steve.
--- SQLite requires table recreation to modify a CHECK constraint.
-PRAGMA foreign_keys=OFF;
-
-CREATE TABLE users_new (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  email         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
-  name          TEXT    NOT NULL DEFAULT '',
-  role          TEXT    NOT NULL DEFAULT 'estimator' CHECK (role IN ('admin','estimator','superadmin')),
-  password_hash TEXT    DEFAULT NULL,
-  active        INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
-);
-
-INSERT INTO users_new SELECT id, email, name, role, password_hash, active, created_at FROM users;
-
-DROP TABLE users;
-ALTER TABLE users_new RENAME TO users;
-
-PRAGMA foreign_keys=ON;
+-- Allow the 'superadmin' role, then promote Steve.
+--
+-- The table rebuild that widens the role CHECK used to live here. Because every
+-- migration re-runs on every startup, it rebuilt the users table on every
+-- deploy and dropped any column added after it (tracker_role, phone,
+-- page_access), resetting them. The rebuild now lives in db.js
+-- (allowSuperadminRole), runs just before this file, and only when the table
+-- still needs it. Existing databases are left exactly as they are.
 
 -- Promote Steve to superadmin
 UPDATE users SET role = 'superadmin' WHERE email = 'stevem@rrfabrication.org' AND role IN ('admin','estimator');

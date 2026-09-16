@@ -2,6 +2,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { buildChangeOrderPayload, pushChangeOrderToTracker } = require('../lib/tracker_push');
+
+// Tell the Project Tracker about this change order's current state. Never
+// throws and never slows the response; see lib/tracker_push.js.
+function syncToTracker(hydrated) {
+  try { pushChangeOrderToTracker(buildChangeOrderPayload(hydrated)); }
+  catch (e) { console.error('[change orders] tracker sync skipped:', e.message); }
+}
 
 // Local copies, deliberately not imported from routes/estimates.js so that this
 // feature cannot affect existing estimate behavior. Kept tiny on purpose.
@@ -630,7 +638,9 @@ router.put('/:id', (req, res) => {
     }
   }
 
-  res.json(hydrate(after));
+  const out = hydrate(after);
+  syncToTracker(out);
+  res.json(out);
 });
 
 // ---- REPLACE LINES ----
@@ -663,7 +673,10 @@ router.put('/:id/lines', (req, res) => {
   });
   tx(rows);
 
-  res.json(hydrate(db.prepare('SELECT * FROM change_orders WHERE id = ?').get(id)));
+  const out = hydrate(db.prepare('SELECT * FROM change_orders WHERE id = ?').get(id));
+  // Line edits only matter to the tracker once the change order has gone out.
+  if (out.status === 'Submitted' || out.status === 'Approved') syncToTracker(out);
+  res.json(out);
 });
 
 // ---- SOFT DELETE ----
@@ -684,7 +697,34 @@ router.delete('/:id', (req, res) => {
     "UPDATE estimates SET deleted_at = datetime('now') WHERE change_order_id = ? AND deleted_at IS NULL"
   ).run(id);
 
+  // Deleted change orders come off the tracker's contract sum.
+  syncToTracker(hydrate(db.prepare('SELECT * FROM change_orders WHERE id = ?').get(id)));
+
   res.json({ ok: true, id });
 });
 
+// Every change order the tracker should currently hold: Submitted or Approved,
+// not deleted, on a Won job with a job number. Used by the key-protected feed
+// in routes/estimates.js. Optional jobNumber narrows it to one job.
+function trackerFeedRows(jobNumber) {
+  const rows = db.prepare(
+    `SELECT co.* FROM change_orders co
+       JOIN estimates e ON e.id = co.estimate_id
+      WHERE co.deleted_at IS NULL
+        AND co.status IN ('Submitted', 'Approved')
+        AND e.deleted_at IS NULL AND e.status = 'Won'
+        AND e.job_number IS NOT NULL AND TRIM(e.job_number) != ''
+      ORDER BY co.id`
+  ).all();
+  const out = [];
+  for (const co of rows) {
+    const payload = buildChangeOrderPayload(hydrate(co));
+    if (!payload || payload.removed) continue;
+    if (jobNumber && payload.job_number !== String(jobNumber).trim()) continue;
+    out.push(payload);
+  }
+  return out;
+}
+
 module.exports = router;
+module.exports.trackerFeedRows = trackerFeedRows;

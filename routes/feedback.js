@@ -4,6 +4,7 @@ const router = express.Router();
 const multer = require('multer');
 const db = require('../db');
 const { sendFeedback } = require('../lib/email');
+const { keyMatches } = require('../lib/integration_key');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -11,9 +12,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // Set FEEDBACK_KEY in Railway env vars. The /admin/* paths are allowed through
 // requireAuth (see lib/auth.js isPublicPath) and enforce this key themselves.
 function keyOk(req) {
-  const want = process.env.FEEDBACK_KEY || '';
   const got = (req.query.key || req.headers['x-feedback-key'] || '').toString();
-  return want.length > 0 && got === want;
+  return keyMatches(process.env.FEEDBACK_KEY, got);
 }
 
 // Submit feedback: save it for triage AND email it (existing behavior).

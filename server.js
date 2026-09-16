@@ -7,6 +7,7 @@ const db = require('./db');
 const { requireAuth, requireAdmin } = require('./lib/auth');
 const { isConfigured: smtpConfigured } = require('./lib/email');
 const { estimateOwnershipCheck } = require('./routes/estimates');
+const { requirePage } = require('./lib/access');
 
 const app = express();
 app.use(cors({
@@ -53,17 +54,24 @@ app.use('/api/settings/proposal-defaults', requireAdmin, require('./routes/propo
 app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
 app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
-app.use('/api/change-orders', require('./routes/change_orders'));
+// Page access is set per user on the Users screen (lib/access.js).
+app.use('/api/change-orders', requirePage('change_orders'), require('./routes/change_orders'));
 // Bid Calendar: a view over estimates plus per-user reminder settings.
-app.use('/api/calendar', require('./routes/calendar'));
+// The due-soon check and reminder settings stay open to everyone: they are
+// about the person's own bids and power their notifications and Settings page.
+const calendarPage = requirePage('calendar');
+app.use('/api/calendar', (req, res, next) => (
+  req.path.startsWith('/due-soon') || req.path.startsWith('/reminder-settings') ? next() : calendarPage(req, res, next)
+), require('./routes/calendar'));
 // Emails the estimator 24 hours before a bid is due (and the morning of, if they opted in).
 require('./lib/bid_reminders').start(db);
 // Off-site backup. Guarded by its own BACKUP_KEY secret, not a user login.
 app.use('/api/backup', require('./routes/backup'));
 // Automatic off-site copies on a timer. A no-op until the S3 variables are set.
 require('./lib/offsite_backup').start(require('./db'));
-// Reports — company-wide bid activity and dollar volume. Admin and superadmin only.
-app.use('/api/reports', requireAdmin, require('./routes/reports'));
+// Reports — company-wide bid activity and dollar volume. Admins by default;
+// an admin can turn it on for anyone else on the Users screen.
+app.use('/api/reports', requirePage('reports'), require('./routes/reports'));
 
 // ---- Root ----
 app.get('/', (req, res) => {
