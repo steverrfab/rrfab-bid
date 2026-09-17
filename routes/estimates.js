@@ -245,7 +245,8 @@ router.get('/', (req, res) => {
     const rows = db.prepare(`
       SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date, e.bid_time,
              e.status, e.job_type, e.bid_type, e.revised_from_id, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
-             u.name as owner_name, u.email as owner_email
+             u.name as owner_name, u.email as owner_email,
+             (SELECT c.id FROM bid_calendar c WHERE c.estimate_id = e.id AND c.deleted_at IS NULL LIMIT 1) AS calendar_id
       FROM estimates e
       LEFT JOIN users u ON u.id = e.created_by
       WHERE e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0 AND e.change_order_id IS NULL
@@ -257,7 +258,8 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT e.id, e.project_name, e.job_number, e.bid_number, e.client_gc, e.bid_date, e.bid_time,
            e.status, e.job_type, e.bid_type, e.revised_from_id, e.updated_at, e.created_at, e.submitted_at, e.created_by, e.due_date,
-           u.name as owner_name, u.email as owner_email
+           u.name as owner_name, u.email as owner_email,
+           (SELECT c.id FROM bid_calendar c WHERE c.estimate_id = e.id AND c.deleted_at IS NULL LIMIT 1) AS calendar_id
     FROM estimates e
     LEFT JOIN users u ON u.id = e.created_by
     WHERE e.created_by = ? AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0 AND e.change_order_id IS NULL
@@ -398,27 +400,34 @@ router.get('/tax-summary', (req, res) => {
 
 // ---- CREATE ----
 router.post('/', (req, res) => {
-  const stmt = db.prepare(`INSERT INTO estimates
-    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1)`);
-  const info = stmt.run(req.user.userId);
-  const id = info.lastInsertRowid;
-  if (req.body && Object.keys(req.body).length) {
-    applyUpdate(id, req.body);
-  }
-  // Seed default rows for a brand-new process-only estimate.
-  if (req.body && req.body.job_type === 'process_only') {
-    seedProcessOnlyDefaults(id);
-  }
-  // Default Prepared By to the signed-in user's name.
-  if (req.user && req.user.name) {
-    db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(req.user.name, id);
-  }
-  // Seed proposal Notes/Terms from the admin-set defaults (settings_kv), only when empty.
-  seedProposalDefaults(id);
+  const id = createEstimate(req.user.userId, req.user && req.user.name, req.body);
   const bundle = loadFullEstimate(id);
   res.status(201).json(bundle);
 });
+
+// Create a new estimate owned by ownerId. Shared by New Estimate and the Bid
+// Calendar's Start bid, which creates it for the calendar bid's estimator.
+function createEstimate(ownerId, ownerName, body) {
+  const stmt = db.prepare(`INSERT INTO estimates
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1)`);
+  const info = stmt.run(ownerId);
+  const id = info.lastInsertRowid;
+  if (body && Object.keys(body).length) {
+    applyUpdate(id, body);
+  }
+  // Seed default rows for a brand-new process-only estimate.
+  if (body && body.job_type === 'process_only') {
+    seedProcessOnlyDefaults(id);
+  }
+  // Default Prepared By to the owner's name.
+  if (ownerName) {
+    db.prepare("UPDATE estimates SET prepared_by = ? WHERE id = ? AND (prepared_by IS NULL OR prepared_by = '')").run(ownerName, id);
+  }
+  // Seed proposal Notes/Terms from the admin-set defaults (settings_kv), only when empty.
+  seedProposalDefaults(id);
+  return id;
+}
 
 // Copy the admin-configured default proposal Notes and Terms into a new estimate.
 // Only fills a field that is currently empty so it never clobbers anything the
@@ -982,8 +991,12 @@ router.get('/:id/resubmit-preview', (req, res) => {
 //                       built once a bid is Won, against the contract that was
 //                       actually signed. A clone is an unawarded bid, so it has
 //                       no SOV yet, the same as any other new bid.
+//   bid_calendar        the Bid Calendar invite a bid is linked to. One estimate
+//                       per calendar bid, so a copy starts unlinked.
+//   bid_reminders       the log of reminder emails already sent for the original.
 const CLONE_SKIP_TABLES = new Set([
-  'estimate_locks', 'estimate_resubmits', 'change_orders', 'sov_items'
+  'estimate_locks', 'estimate_resubmits', 'change_orders', 'sov_items',
+  'bid_calendar', 'bid_reminders'
 ]);
 
 // Columns never copied verbatim: the child row's own key, the parent pointer
@@ -1044,7 +1057,33 @@ function cloneEstimateRow(src, projectSuffix) {
   const vals = cols.map(c => c === 'status' ? 'Draft' : (c === 'project_name' ? (src[c] || '') + (projectSuffix || '') : src[c]));
   const result = db.prepare(`INSERT INTO estimates (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
   const newId = result.lastInsertRowid;
+  // created_by is not a saveable column, so carry the owner over here. Without
+  // this a copy had no owner and vanished from the estimator's own list.
+  if (src.created_by) db.prepare('UPDATE estimates SET created_by = ? WHERE id = ?').run(src.created_by, newId);
   copyEstimateChildren(src.id, newId);
+  return newId;
+}
+
+// Copy an estimate as a brand-new job (the Clone button's copy path): new bid
+// number, no job number, alternates copied along. The original is untouched.
+// Used by the Bid Calendar's "Copy for this GC". Returns the new id.
+function copyAsNewJob(src, suffix = ' (copy)') {
+  let newId;
+  db.transaction(() => {
+    newId = cloneEstimateRow(src, suffix);
+    db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, job_number = NULL WHERE id = ?").run(nextBidNumber(), newId);
+    if (!src.is_alternate) {
+      const alts = db.prepare(
+        'SELECT * FROM estimates WHERE parent_estimate_id = ? AND is_alternate = 1 AND deleted_at IS NULL ORDER BY alt_position, id'
+      ).all(src.id);
+      for (const alt of alts) {
+        const newAltId = cloneEstimateRow(alt, '');
+        db.prepare(
+          "UPDATE estimates SET is_alternate = 1, parent_estimate_id = ?, bid_number = '', confirmed = 1 WHERE id = ?"
+        ).run(newId, newAltId);
+      }
+    }
+  })();
   return newId;
 }
 
@@ -1082,6 +1121,8 @@ router.post('/:id/clone', (req, res) => {
       // The bid it supersedes drops out of totals so the same job is not counted
       // twice. If a revision is later abandoned, re-mark bid types by hand.
       db.prepare("UPDATE estimates SET bid_type = 'superseded' WHERE id = ?").run(src.id);
+      // The revision is now the live bid, so its Bid Calendar entry moves with it.
+      db.prepare("UPDATE bid_calendar SET estimate_id = ?, updated_at = datetime('now') WHERE estimate_id = ? AND deleted_at IS NULL").run(newId, src.id);
     } else {
       db.prepare("UPDATE estimates SET bid_number = ?, confirmed = 1, job_number = NULL WHERE id = ?").run(nextBidNumber(), newId);
     }
@@ -1706,4 +1747,4 @@ router.get('/:id/tracker-status', async (req, res) => {
 
 // seedProcessOnlyDefaults is exported so a change order created against a
 // process-only job starts with the same default lines a process-only bid gets.
-module.exports = { router, loadFullEstimate, estimateOwnershipCheck, seedProcessOnlyDefaults, sellPretax };
+module.exports = { router, loadFullEstimate, estimateOwnershipCheck, seedProcessOnlyDefaults, sellPretax, createEstimate, copyAsNewJob, nextBidNumber };

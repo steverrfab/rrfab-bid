@@ -447,6 +447,46 @@ function relaxChangeOrderParent() {
   }
 }
 
+// One-time, migration 062. Before v2 the Bid Calendar was a view of the
+// estimates table, so every open bid with a due date was on it. Carry those
+// over as calendar bids, already linked to their estimate, so nothing drops off
+// the calendar on deploy. Adds calendar rows only: no estimate is touched.
+// Guarded by a marker, so a bid removed from the calendar later never comes back.
+function copyCalendarFromEstimates() {
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _data_fixes (name TEXT PRIMARY KEY, applied_at TEXT)");
+    const MARKER = '062_calendar_from_estimates';
+    if (db.prepare('SELECT 1 FROM _data_fixes WHERE name = ?').get(MARKER)) return;
+    const { isoDate, isoTime } = require('./lib/bid_due');
+    const rows = db.prepare(`
+      SELECT id, project_name, client_gc, bid_date, bid_time, created_by
+      FROM estimates
+      WHERE deleted_at IS NULL AND confirmed = 1 AND is_alternate = 0 AND change_order_id IS NULL
+        AND (bid_type = 'real' OR bid_type IS NULL)
+        AND status = 'Draft'
+        AND bid_date IS NOT NULL AND bid_date != ''
+    `).all();
+    const linked = db.prepare('SELECT 1 FROM bid_calendar WHERE estimate_id = ? AND deleted_at IS NULL');
+    const ins = db.prepare(`INSERT INTO bid_calendar
+      (project_name, client_gc, source, due_date, due_time, assigned_to, estimate_id, created_by)
+      VALUES (?, ?, '', ?, ?, ?, ?, ?)`);
+    let copied = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const d = isoDate(r.bid_date);
+        if (!d || linked.get(r.id)) continue;
+        ins.run(r.project_name || '', r.client_gc || '', d, isoTime(r.bid_time) || null, r.created_by || null, r.id, r.created_by || null);
+        copied += 1;
+      }
+      db.prepare("INSERT OR IGNORE INTO _data_fixes (name, applied_at) VALUES (?, datetime('now'))").run(MARKER);
+    });
+    tx();
+    console.log('[db] bid calendar v2: copied ' + copied + ' open bid(s) onto the calendar (estimates unchanged)');
+  } catch (err) {
+    console.error('[db] bid calendar copy skipped:', err.message);
+  }
+}
+
 runMigrations();
 seedAisc();
 normalizeSections();
@@ -455,5 +495,6 @@ seedStandardExclusions();
 reconcileWonLostFamilies();
 unpinLegacyPlateWeights();
 relaxChangeOrderParent();
+copyCalendarFromEstimates();
 
 module.exports = db;

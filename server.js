@@ -69,7 +69,7 @@ app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions')
 app.use('/api/users', require('./routes/users'));
 // Page access is set per user on the Users screen (lib/access.js).
 app.use('/api/change-orders', requirePage('change_orders'), require('./routes/change_orders'));
-// Bid Calendar: a view over estimates plus per-user reminder settings.
+// Bid Calendar: its own list of bid invites, linked to estimates, plus per-user reminder settings.
 // The due-soon check and reminder settings stay open to everyone: they are
 // about the person's own bids and power their notifications and Settings page.
 const calendarPage = requirePage('calendar');
