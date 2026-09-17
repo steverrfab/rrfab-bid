@@ -115,22 +115,27 @@ async function run() {
   t('restart does not copy again', r.body.entries.length === 3, r.body.entries.length);
 
   console.log('\n--- 2. add, edit, remove ---');
-  r = await call('joe', 'POST', '/api/calendar', { project_name: '', client_gc: 'Gilbane', due_date: day(14) });
+  r = await call('joe', 'POST', '/api/calendar', { project_name: '', due_date: day(14) });
   t('project required', r.status === 400 && /Project/.test(r.body.error), r);
-  r = await call('joe', 'POST', '/api/calendar', { project_name: 'UMBC Lab Building Lintels', client_gc: 'Gilbane', due_date: '' });
+  r = await call('joe', 'POST', '/api/calendar', { project_name: 'UMBC Lab Building Lintels', due_date: '' });
   t('due date required', r.status === 400 && /due date/.test(r.body.error), r);
-  r = await call('joe', 'POST', '/api/calendar', { project_name: 'UMBC Lab Building Lintels', client_gc: 'Gilbane', source: 'PlanHub', due_date: day(14), start_date: day(4), assigned_to: 25, docs_url: 'https://planhub.example/x' });
-  t('time is optional', r.status === 201 && r.body.due_time === '' && r.body.due_at === null, r);
+  r = await call('joe', 'POST', '/api/calendar', { project_name: 'UMBC Lab Building Lintels', source: 'PlanHub', due_date: day(14), assigned_to: 25, docs_url: 'https://planhub.example/x' });
+  t('no GC needed, time optional', r.status === 201 && r.body.due_time === '' && r.body.due_at === null && r.body.client_gc === '', r);
   t('estimator cannot assign to someone else', r.body.assigned_to === 23, r.body.assigned_to);
-  t('fields saved', r.body.source === 'PlanHub' && r.body.start_date === day(4) && r.body.docs_url === 'https://planhub.example/x' && r.body.estimate === null, r.body);
+  t('fields saved', r.body.source === 'PlanHub' && r.body.docs_url === 'https://planhub.example/x' && r.body.estimate === null, r.body);
+  t('start day defaults to 2 days before due', r.body.start_lead_days === 2 && r.body.start_date === day(12), [r.body.start_lead_days, r.body.start_date]);
   const umbc = r.body.id;
-  r = await call('joe', 'POST', '/api/calendar', { project_name: 'Towson Library Stair Package', client_gc: 'Barton Malow', source: 'BuildingConnected', due_date: day(8), due_time: '12:00' });
+  r = await call('joe', 'POST', '/api/calendar', { project_name: 'Towson Library Stair Package', source: 'BuildingConnected', due_date: day(8), due_time: '12:00' });
   const towsonBM = r.body.id;
   t('second GC invite for the same job added', r.status === 201 && r.body.due_time === '12:00' && !!r.body.due_at, r);
   const towsonWT = e100.id;
-  r = await call('boss', 'POST', '/api/calendar', { project_name: 'BWI Guardrail', client_gc: 'Clark', due_date: day(10), assigned_to: 25 });
+  r = await call('boss', 'POST', '/api/calendar', { project_name: 'BWI Guardrail', due_date: day(10), assigned_to: 25 });
   t('admin can add one for Mike', r.status === 201 && r.body.assigned_to === 25 && r.body.estimator_name === 'Mike R', r.body);
   const bwi = r.body.id;
+  r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 5 });
+  t('start day follows the lead time', r.body.start_lead_days === 5 && r.body.start_date === day(9), [r.body.start_lead_days, r.body.start_date]);
+  r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 99 });
+  t('a lead time that is not offered falls back to 2 days', r.body.start_lead_days === 2, r.body.start_lead_days);
   r = await call('joe', 'PUT', '/api/calendar/' + umbc, { due_time: '11:00', notes: 'walkthrough Tue' });
   t('edit time and notes', r.status === 200 && r.body.due_time === '11:00' && r.body.notes === 'walkthrough Tue' && r.body.project_name === 'UMBC Lab Building Lintels', r.body);
   r = await call('joe', 'PUT', '/api/calendar/' + umbc, { due_time: '' });
@@ -157,8 +162,8 @@ async function run() {
   t('Mike cannot remove Joe\'s', r.status === 403, r.status);
   r = await call('boss', 'GET', all + '&user=25');
   t('admin views Mike', r.body.entries.length === 2 && r.body.entries.every(e => e.assigned_to === 25), r.body.entries);
-  r = await call('boss', 'GET', `/api/calendar?from=${day(3)}&to=${day(5)}&user=23`);
-  t('start date inside the window brings the bid in', r.body.entries.some(e => e.id === umbc), r.body.entries.map(e => e.id));
+  r = await call('boss', 'GET', `/api/calendar?from=${day(11)}&to=${day(13)}&user=23`);
+  t('start day inside the window brings the bid in', r.body.entries.some(e => e.id === umbc), r.body.entries.map(e => e.id));
 
   console.log('\n--- 4. link, unlink, due date follows the calendar ---');
   r = await call('joe', 'POST', `/api/calendar/${towsonWT}/link`, { estimate_id: 106 });
@@ -187,6 +192,16 @@ async function run() {
   t('unlink', r.status === 200 && r.body.estimate === null, r);
   r = await call('joe', 'GET', '/api/estimates/106');
   t('unlink leaves the estimate as it was', r.body.estimate.bid_date === day(15) && r.body.estimate.project_name === 'No Date Draft');
+  r = await call('joe', 'POST', '/api/calendar', { project_name: 'Pikesville Retail Stair', due_date: day(9), estimate_id: 106 });
+  t('Project tab: add a bid to the calendar already linked', r.status === 201 && r.body.estimate && r.body.estimate.id === 106, r);
+  const fromEst = r.body.id;
+  r = await call('joe', 'GET', '/api/estimates/106');
+  t('that estimate took the new calendar due date', r.body.estimate.bid_date === day(9), r.body.estimate.bid_date);
+  r = await call('joe', 'POST', '/api/calendar', { project_name: 'Dup', due_date: day(9), estimate_id: 106 });
+  t('an estimate cannot be added twice', r.status === 409, r.status);
+  r = await call('joe', 'POST', '/api/calendar/' + fromEst + '/unlink');
+  r = await call('joe', 'DELETE', '/api/calendar/' + fromEst);
+
   r = await call('joe', 'GET', '/api/calendar/for-estimate/107');
   const candIds = r.body.candidates.map(c => c.id);
   t('Project tab lookup: open unlinked calendar bids to pick from', !r.body.linked && candIds.includes(umbc) && candIds.includes(towsonBM) && !candIds.includes(towsonWT) && !candIds.includes(bwi), candIds);
@@ -200,7 +215,7 @@ async function run() {
   r = await call('mike', 'GET', '/api/estimates/' + bwiEst);
   const ne = r.body.estimate;
   t('new estimate is Mike\'s and he can open it', r.status === 200 && ne.created_by === 25, ne && ne.created_by);
-  t('project, GC and due date filled in', ne.project_name === 'BWI Guardrail' && ne.client_gc === 'Clark' && ne.bid_date === day(10) && ne.status === 'Draft', ne);
+  t('project and due date filled in, GC left for the estimator', ne.project_name === 'BWI Guardrail' && ne.client_gc === '' && ne.bid_date === day(10) && ne.status === 'Draft', ne);
   t('it has a bid number and Prepared By is Mike', !!ne.bid_number && ne.prepared_by === 'Mike R', [ne.bid_number, ne.prepared_by]);
   r = await call('boss', 'POST', `/api/calendar/${bwi}/start`, {});
   t('cannot start twice', r.status === 409, r.status);
@@ -222,7 +237,7 @@ async function run() {
   r = await call('joe', 'GET', '/api/estimates/' + copyId);
   const ce = r.body.estimate;
   t('copy has its own bid number', ce.bid_number && ce.bid_number !== '2073', ce.bid_number);
-  t('copy is for Barton Malow, due that GC\'s date, same project name', ce.client_gc === 'Barton Malow' && ce.bid_date === day(8) && ce.project_name === 'Towson Library Stair Package', ce);
+  t('copy takes the calendar bid\'s due date and keeps the name and the GC it was copied from', ce.client_gc === 'Whiting-Turner' && ce.bid_date === day(8) && ce.project_name === 'Towson Library Stair Package', ce);
   t('copy belongs to Joe and is a Draft', ce.created_by === 23 && ce.status === 'Draft');
   db2 = fresh();
   t('takeoff came along', db2.prepare('SELECT COUNT(*) n FROM takeoff_shapes WHERE estimate_id = ?').get(copyId).n === 1);

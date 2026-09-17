@@ -16,10 +16,22 @@ function isAdminish(role) {
 }
 
 const SOURCES = ['Email', 'BuildingConnected', 'PlanHub', 'Procore', 'Phone', 'Other'];
+// "Start working by" is a lead time off the due date, not a typed date.
+const LEAD_DAYS = [1, 2, 5];
+const DEFAULT_LEAD = 2;
+
+// The day to start work on a bid: its due date less its lead time.
+function startDay(dueDate, leadDays) {
+  const d = isoDate(dueDate);
+  if (!d) return '';
+  const [y, m, day] = d.split('-').map(Number);
+  const at = new Date(Date.UTC(y, m - 1, day - (Number(leadDays) || DEFAULT_LEAD)));
+  return at.toISOString().slice(0, 10);
+}
 
 // Calendar row + its linked estimate (a deleted estimate counts as not linked).
 const ENTRY_SELECT = `
-  SELECT c.id, c.project_name, c.client_gc, c.source, c.due_date, c.due_time, c.start_date,
+  SELECT c.id, c.project_name, c.client_gc, c.source, c.due_date, c.due_time, c.start_lead_days,
          c.assigned_to, c.docs_url, c.notes, c.created_by, c.created_at, c.updated_at,
          u.name AS estimator_name,
          e.id AS estimate_id, e.bid_number AS estimate_bid_number, e.project_name AS estimate_project_name,
@@ -38,7 +50,8 @@ function shape(r) {
     source: r.source,
     due_date: r.due_date,
     due_time: r.due_time || '',
-    start_date: r.start_date || '',
+    start_lead_days: r.start_lead_days == null ? DEFAULT_LEAD : r.start_lead_days,
+    start_date: startDay(r.due_date, r.start_lead_days),
     due_at: due ? due.toISOString() : null,
     assigned_to: r.assigned_to,
     estimator_name: r.estimator_name || '',
@@ -81,7 +94,10 @@ function readFields(req, body, { partial }) {
   if (!partial || has('source')) out.source = SOURCES.includes(str(body.source)) ? str(body.source) : '';
   if (!partial || has('due_date')) out.due_date = isoDate(body.due_date);
   if (!partial || has('due_time')) out.due_time = isoTime(body.due_time) || null;
-  if (!partial || has('start_date')) out.start_date = isoDate(body.start_date) || null;
+  if (!partial || has('start_lead_days')) {
+    const n = Number(body.start_lead_days);
+    out.start_lead_days = LEAD_DAYS.includes(n) ? n : DEFAULT_LEAD;
+  }
   if (!partial || has('docs_url')) out.docs_url = str(body.docs_url).slice(0, 2000);
   if (!partial || has('notes')) out.notes = str(body.notes).slice(0, 5000);
   if (has('assigned_to') && isAdminish(req.user.role)) {
@@ -93,7 +109,6 @@ function readFields(req, body, { partial }) {
   }
   const missing = [];
   if ('project_name' in out && !out.project_name) missing.push('Project');
-  if ('client_gc' in out && !out.client_gc) missing.push('Invited by (GC)');
   if ('due_date' in out && !out.due_date) missing.push('Bid due date');
   if (missing.length) return { error: 'Fill in before saving: ' + missing.join(', ') + '.' };
   return { fields: out };
@@ -135,7 +150,8 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(ENTRY_SELECT + `
     WHERE c.deleted_at IS NULL
-      AND ((c.due_date BETWEEN ? AND ?) OR (c.start_date BETWEEN ? AND ?))
+      AND ((c.due_date BETWEEN ? AND ?)
+           OR (date(c.due_date, '-' || IFNULL(c.start_lead_days, 2) || ' days') BETWEEN ? AND ?))
       ${userFilter ? 'AND c.assigned_to = ?' : ''}
     ORDER BY c.due_date, IFNULL(c.due_time, '99:99'), c.id
   `).all(from, to, from, to, ...(userFilter ? [userFilter] : []));
@@ -157,7 +173,7 @@ router.get('/', (req, res) => {
     ORDER BY e.id DESC
   `).all(...(admin ? [] : [req.user.userId]));
 
-  res.json({ entries: rows.map(shape), users, drafts, viewing: userFilter, is_admin: admin, sources: SOURCES });
+  res.json({ entries: rows.map(shape), users, drafts, viewing: userFilter, is_admin: admin, sources: SOURCES, lead_days: LEAD_DAYS, default_lead: DEFAULT_LEAD });
 });
 
 // GET /api/calendar/entry/:id  - one calendar bid (opens it from a link).
@@ -168,8 +184,8 @@ router.get('/entry/:id', (req, res) => {
 
 // GET /api/calendar/siblings/:id
 // Other calendar bids for the same estimator that already have an estimate.
-// The popup keeps the ones that look like the same job from another GC and
-// offers "Copy for this GC".
+// The popup keeps the ones that look like the same job and offers to copy that
+// estimate, so a job bid to more than one GC is priced from the first one.
 router.get('/siblings/:id', (req, res) => {
   const entry = getEntryOr404(req, res);
   if (!entry) return;
@@ -255,14 +271,29 @@ router.put('/reminder-settings', (req, res) => {
 // (Kept below the fixed paths above so PUT /reminder-settings never matches PUT /:id.)
 
 // POST /api/calendar  - add a bid invite to the calendar.
+// With estimate_id it is created already linked to that estimate, which is how
+// the Project tab adds a bid that is not on the calendar yet.
 router.post('/', (req, res) => {
   const { fields, error } = readFields(req, req.body || {}, { partial: false });
   if (error) return res.status(400).json({ error });
+  const estimateId = Number(req.body && req.body.estimate_id) || null;
+  if (estimateId) {
+    const why = checkLinkable(req, estimateId, null);
+    if (why) return res.status(409).json({ error: why });
+    // It belongs to whoever the estimate belongs to.
+    const owner = db.prepare('SELECT created_by FROM estimates WHERE id = ?').get(estimateId);
+    if (owner && owner.created_by) fields.assigned_to = owner.created_by;
+  }
   const info = db.prepare(`INSERT INTO bid_calendar
-    (project_name, client_gc, source, due_date, due_time, start_date, assigned_to, docs_url, notes, created_by)
-    VALUES (@project_name, @client_gc, @source, @due_date, @due_time, @start_date, @assigned_to, @docs_url, @notes, @created_by)`)
+    (project_name, client_gc, source, due_date, due_time, start_lead_days, assigned_to, docs_url, notes, created_by)
+    VALUES (@project_name, @client_gc, @source, @due_date, @due_time, @start_lead_days, @assigned_to, @docs_url, @notes, @created_by)`)
     .run({ ...fields, created_by: req.user.userId });
-  res.status(201).json(loadEntry(info.lastInsertRowid));
+  const id = info.lastInsertRowid;
+  if (estimateId) {
+    db.prepare('UPDATE bid_calendar SET estimate_id = ? WHERE id = ?').run(estimateId, id);
+    syncEstimateDate(id);
+  }
+  res.status(201).json(loadEntry(id));
 });
 
 // PUT /api/calendar/:id  - edit. A new due date also goes to the linked estimate.
@@ -354,11 +385,17 @@ router.post('/:id/copy', (req, res) => {
   db.transaction(() => {
     estimateId = copyAsNewJob(src, '');
     const ownerId = entry.assigned_to || src.created_by || req.user.userId;
-    db.prepare(`UPDATE estimates SET client_gc = ?, bid_date = ?, created_by = ?, status = 'Draft',
+    db.prepare(`UPDATE estimates SET bid_date = ?, created_by = ?, status = 'Draft',
                 submitted_at = NULL, won_at = NULL, bid_type = 'real', revised_from_id = NULL WHERE id = ?`)
-      .run(entry.client_gc, entry.due_date, ownerId, estimateId);
-    db.prepare("UPDATE estimates SET client_gc = ?, bid_date = ?, created_by = ? WHERE parent_estimate_id = ? AND is_alternate = 1")
-      .run(entry.client_gc, entry.due_date, ownerId, estimateId);
+      .run(entry.due_date, ownerId, estimateId);
+    db.prepare("UPDATE estimates SET bid_date = ?, created_by = ? WHERE parent_estimate_id = ? AND is_alternate = 1")
+      .run(entry.due_date, ownerId, estimateId);
+    // A calendar bid carries no GC, so the copy keeps the GC it was copied from
+    // until the estimator changes it on the Project tab.
+    if (entry.client_gc) {
+      db.prepare('UPDATE estimates SET client_gc = ? WHERE id = ? OR (parent_estimate_id = ? AND is_alternate = 1)')
+        .run(entry.client_gc, estimateId, estimateId);
+    }
     db.prepare("UPDATE bid_calendar SET estimate_id = ?, updated_at = datetime('now') WHERE id = ?").run(estimateId, entry.id);
   })();
   res.status(201).json({ entry: loadEntry(entry.id), estimate_id: estimateId });
