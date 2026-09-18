@@ -57,7 +57,8 @@ function sovItemsFor(bundle) {
 }
 
 const EST_COLS = [
-  'project_name', 'job_number', 'client_gc', 'bid_date', 'bid_time', 'proposal_date', 'drawing_numbers',
+  'project_name', 'job_number', 'client_gc', 'crm_company_id', 'crm_company_name',
+  'bid_date', 'bid_time', 'proposal_date', 'drawing_numbers',
   'prepared_by', 'scope', 'status',
   'fab_mh', 'fab_rate', 'processing_rate',
   'paint_weight', 'paint_rate', 'consumables_weight', 'consumables_rate',

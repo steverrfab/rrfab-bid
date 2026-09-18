@@ -65,6 +65,7 @@ app.use('/api/recipients',          requireAdmin, require('./routes/recipients')
 app.use('/api/settings/prices',     requireAdmin, require('./routes/prices'));
 app.use('/api/settings/proposal-defaults', requireAdmin, require('./routes/proposal_defaults'));
 app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
+app.use('/api/crm', require('./routes/crm'));
 app.use('/api/standard-exclusions', requireAdmin, require('./routes/exclusions').stdRouter);
 app.use('/api/users', require('./routes/users'));
 // Page access is set per user on the Users screen (lib/access.js).
