@@ -1657,6 +1657,47 @@ router.get('/feed/won-jobs', requireIntegrationKey('TRACKER_KEY'), (req, res) =>
   res.json({ jobs });
 });
 
+// ---- INTEGRATION FEED: one GC's bid history (read-only) ----
+// What the CRM shows on a company's Bids tab. Every real bid we have sent that
+// company, whatever became of it: quoting, submitted, won, lost. Same definition of
+// a real bid the Estimates list uses, so the two never disagree: no deleted bids, no
+// unconfirmed drafts, no alternates, no change orders, no demo or test bids.
+//
+// Guarded by the shared CRM key. Read-only, and it touches nothing.
+router.get('/feed/bids-for-company', requireIntegrationKey('CRM_KEY'), (req, res) => {
+  const companyId = String(req.query.crm_company_id || '').trim();
+  if (!companyId) return res.status(400).json({ error: 'crm_company_id required' });
+  const limit = Math.min(Number(req.query.limit) || 100, 250);
+
+  const rows = db.prepare(`
+    SELECT e.id, e.project_name, e.bid_number, e.job_number, e.client_gc, e.crm_company_name,
+           e.status, e.job_type, e.bid_date, e.due_date, e.submitted_at, e.won_at, e.updated_at,
+           u.name AS owner_name
+    FROM estimates e
+    LEFT JOIN users u ON u.id = e.created_by
+    WHERE e.crm_company_id = ?
+      AND e.deleted_at IS NULL AND e.confirmed = 1 AND e.is_alternate = 0
+      AND e.change_order_id IS NULL AND (e.bid_type = 'real' OR e.bid_type IS NULL)
+    ORDER BY COALESCE(e.submitted_at, e.bid_date, e.created_at) DESC, e.id DESC
+    LIMIT ?`).all(companyId, limit);
+
+  attachAmounts(rows);
+
+  // Counts the CRM puts above the list. Deliberately no win rate: with bids rarely
+  // marked Lost it would read 100% for every GC and quietly mislead. Add it when
+  // Lost is actually being used.
+  const summary = {
+    bids: rows.length,
+    total_value: rows.reduce((n, r) => n + (+r.contract_amount || 0), 0),
+    won: rows.filter(r => r.status === 'Won').length,
+    won_value: rows.filter(r => r.status === 'Won').reduce((n, r) => n + (+r.contract_amount || 0), 0),
+    lost: rows.filter(r => r.status === 'Lost').length,
+    open: rows.filter(r => r.status === 'Quoting' || r.status === 'Submitted').length,
+    last_bid_at: rows.length ? (rows[0].submitted_at || rows[0].bid_date || null) : null,
+  };
+  res.json({ rows, summary });
+});
+
 // ---- INTEGRATION FEED: Schedule of Values for one estimate (read-only) ----
 // Protected by the same shared TRACKER_KEY as the won-jobs feed. Returns the
 // saved SOV lines for an estimate (auto-generating from the computed totals if
