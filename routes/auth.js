@@ -5,7 +5,7 @@ const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
 const { sendAccessRequestNotification } = require('../lib/email');
-const { effectivePages, effectiveTrackerRole } = require('../lib/access');
+const { effectivePages, effectiveTrackerRole, effectiveCrmRole } = require('../lib/access');
 
 // POST /api/auth/login  { email, password }
 router.post('/login', (req, res) => {
@@ -20,7 +20,7 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), pages: effectivePages(user) } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user) } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
@@ -53,6 +53,35 @@ router.post('/tracker-sso', (req, res) => {
   );
   // Optional landing spot inside the tracker, e.g. "/?job=1234-5678" to open
   // that job. Only a same-site path is passed along; anything else is dropped.
+  const next = String((req.body && req.body.next) || '');
+  const safeNext = /^\/(?![\/\\])[^\s]*$/.test(next) ? next : '';
+  res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` + (safeNext ? '&next=' + encodeURIComponent(safeNext) : '') });
+});
+
+// POST /api/auth/crm-sso: mint a short-lived signed token that logs the user
+// into the CRM, the same shape as tracker-sso above. The CRM verifies it with
+// CRM_INTEGRATION_KEY, which is the same secret as CRM_KEY here.
+//
+// The token carries an email and nothing else that grants anything: the CRM
+// looks that email up among its own users and refuses if there is no match, so
+// a bid tool account can never conjure a CRM account into existence.
+router.post('/crm-sso', (req, res) => {
+  if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
+  const row = db.prepare('SELECT email, name, active, role, crm_role FROM users WHERE id = ?').get(req.user.userId);
+  const user = row ? { ...row, crm_role: effectiveCrmRole(row) } : null;
+  if (!user || !user.active || !user.crm_role || user.crm_role === 'none') {
+    return res.status(403).json({ error: 'No CRM access' });
+  }
+  const base = process.env.CRM_APP_URL;
+  const key = process.env.CRM_KEY;
+  if (!base || !key) return res.status(503).json({ error: 'CRM connection not configured' });
+  const token = jwt.sign(
+    { email: user.email, name: user.name, purpose: 'crm-sso' },
+    key,
+    { algorithm: 'HS256', expiresIn: 120 }
+  );
+  // Optional landing spot inside the CRM, e.g. "/companies/<id>". Only a
+  // same-site path is passed along; anything else is dropped.
   const next = String((req.body && req.body.next) || '');
   const safeNext = /^\/(?![\/\\])[^\s]*$/.test(next) ? next : '';
   res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` + (safeNext ? '&next=' + encodeURIComponent(safeNext) : '') });
