@@ -7,6 +7,19 @@ const { signToken, hashPassword, verifyPassword, generateToken } = require('../l
 const { sendAccessRequestNotification } = require('../lib/email');
 const { effectivePages, effectiveTrackerRole, effectiveCrmRole } = require('../lib/access');
 
+// The nav keys this person has ticked off in Customize, as a plain array.
+// Stored on users.sidebar_hidden as a JSON array of strings; anything else in
+// that column reads as "nothing hidden" rather than throwing. Hiding is not
+// permission — effectivePages still decides what anyone may open.
+function sidebarHidden(row) {
+  try {
+    const v = JSON.parse((row && row.sidebar_hidden) || '[]');
+    return Array.isArray(v) ? v.filter(k => typeof k === 'string') : [];
+  } catch (e) {
+    return [];
+  }
+}
+
 // POST /api/auth/login  { email, password }
 router.post('/login', (req, res) => {
   const { email, password } = req.body || {};
@@ -20,19 +33,35 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user) } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, crm_role, phone, page_access FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, crm_role, phone, page_access, sidebar_hidden FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   // pages: the menu items this person may see (see lib/access.js).
   // crm_role belongs here as much as tracker_role does. Login returned it and this did
   // not, so the CRM button showed up once and then disappeared on the next page load.
   const { page_access, ...rest } = user;
-  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user) });
+  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) });
+});
+
+// PUT /api/auth/me/sidebar  { hidden: ["tax","trash"] }
+// Your own sidebar, nobody else's. Saves the nav keys you ticked off in
+// Customize. Unknown keys are kept as-is: the sidebar decides what each key
+// means, so a key from a newer build is not thrown away by an older one.
+router.put('/me/sidebar', (req, res) => {
+  if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
+  const raw = (req.body && req.body.hidden);
+  if (!Array.isArray(raw)) return res.status(400).json({ error: 'hidden must be an array' });
+  const hidden = [...new Set(
+    raw.filter(k => typeof k === 'string').map(k => k.trim()).filter(k => k && k.length <= 40)
+  )].slice(0, 100);
+  db.prepare('UPDATE users SET sidebar_hidden = ? WHERE id = ?')
+    .run(JSON.stringify(hidden), req.user.userId);
+  res.json({ ok: true, sidebar_hidden: hidden });
 });
 
 // POST /api/auth/tracker-sso: mint a short-lived signed token that logs the
@@ -140,6 +169,7 @@ router.post('/sso-exchange', (req, res) => {
     user: {
       id: user.id, email: user.email, name: user.name, role: user.role,
       tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user),
+      sidebar_hidden: sidebarHidden(user),
     },
   });
 });
@@ -172,10 +202,10 @@ router.post('/invite/:token/accept', (req, res) => {
   db.prepare("UPDATE invites SET used_at = datetime('now') WHERE id = ?")
     .run(invite.id);
 
-  const row = db.prepare('SELECT id, email, name, role, tracker_role, page_access FROM users WHERE id = ?').get(invite.user_id);
-  const { page_access, ...user } = row;
+  const row = db.prepare('SELECT id, email, name, role, tracker_role, page_access, sidebar_hidden FROM users WHERE id = ?').get(invite.user_id);
+  const { page_access, sidebar_hidden, ...user } = row;
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { ...user, tracker_role: effectiveTrackerRole(row), pages: effectivePages(row) } });
+  res.json({ token, user: { ...user, tracker_role: effectiveTrackerRole(row), pages: effectivePages(row), sidebar_hidden: sidebarHidden(row) } });
 });
 
 // POST /api/auth/change-password  — authenticated user changes their own password
