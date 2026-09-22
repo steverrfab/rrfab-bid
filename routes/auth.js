@@ -26,11 +26,13 @@ router.post('/login', (req, res) => {
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, phone, page_access FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, crm_role, phone, page_access FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   // pages: the menu items this person may see (see lib/access.js).
+  // crm_role belongs here as much as tracker_role does. Login returned it and this did
+  // not, so the CRM button showed up once and then disappeared on the next page load.
   const { page_access, ...rest } = user;
-  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), pages: effectivePages(user) });
+  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user) });
 });
 
 // POST /api/auth/tracker-sso: mint a short-lived signed token that logs the
@@ -72,9 +74,13 @@ router.post('/crm-sso', (req, res) => {
   if (!user || !user.active || !user.crm_role || user.crm_role === 'none') {
     return res.status(403).json({ error: 'No CRM access' });
   }
-  const base = process.env.CRM_APP_URL;
+  // The CRM's app and API are on different hosts, unlike the tracker's, so this is its
+  // own variable. It defaults, because it was never set on Railway and the button
+  // answered 503 for everyone who had it switched on. The same default the CRM's own
+  // routes use for the bid tool's address.
+  const base = process.env.CRM_APP_URL || 'https://app.rrfabrication.org';
   const key = process.env.CRM_KEY;
-  if (!base || !key) return res.status(503).json({ error: 'CRM connection not configured' });
+  if (!key) return res.status(503).json({ error: 'CRM connection not configured' });
   const token = jwt.sign(
     { email: user.email, name: user.name, purpose: 'crm-sso' },
     key,
@@ -85,6 +91,57 @@ router.post('/crm-sso', (req, res) => {
   const next = String((req.body && req.body.next) || '');
   const safeNext = /^\/(?![\/\\])[^\s]*$/.test(next) ? next : '';
   res.json({ url: `${base.replace(/\/$/, '')}/sso?token=${token}` + (safeNext ? '&next=' + encodeURIComponent(safeNext) : '') });
+});
+
+// POST /api/auth/sso-exchange  { token }  — public
+//
+// The mirror image of the CRM's own sso-exchange. Someone clicked the Bid Tool button
+// in the CRM; the CRM minted a 2-minute token signed with the shared secret and sent
+// them here with it. This trades it for a normal bid tool session.
+//
+// It grants nothing on its own. The token carries an email, and that email has to
+// already belong to an active bid tool account or this refuses. A CRM account cannot
+// create a bid tool account, raise its own role, or reach anything the person could not
+// reach by signing in with a password.
+//
+// Deliberately public (see lib/auth.js): the caller is a browser that has just arrived
+// from the CRM and has no business holding the shared secret. The signature on the
+// token is what is checked, and it expires in two minutes.
+router.post('/sso-exchange', (req, res) => {
+  const secret = process.env.CRM_KEY;
+  if (!secret) return res.status(503).json({ error: 'Single sign-on is not set up on this bid tool.' });
+
+  const raw = String((req.body && req.body.token) || '');
+  if (!raw) return res.status(400).json({ error: 'No sign-in token' });
+
+  let payload;
+  try {
+    payload = jwt.verify(raw, secret, { algorithms: ['HS256'] });
+  } catch (e) {
+    const why = e.name === 'TokenExpiredError'
+      ? 'That sign-in link has expired. Click the Bid Tool button again.'
+      : 'That sign-in link is not valid.';
+    return res.status(401).json({ error: why });
+  }
+  if (payload.purpose !== 'bid-sso') return res.status(401).json({ error: 'That sign-in link is not valid.' });
+
+  const email = String(payload.email || '').trim();
+  if (!email) return res.status(401).json({ error: 'That sign-in link is not valid.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE AND active = 1').get(email);
+  if (!user) {
+    return res.status(403).json({ error: `There is no bid tool account for ${email}. Ask an admin to invite you.` });
+  }
+
+  console.log(`[integration] ${email} signed in from the CRM`);
+  const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
+  res.json({
+    token,
+    user: {
+      id: user.id, email: user.email, name: user.name, role: user.role,
+      tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user),
+    },
+  });
 });
 
 // GET /api/auth/invite/:token  — validate token, return email (public)

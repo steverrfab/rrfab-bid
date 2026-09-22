@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/calc.test.js && node test/parser.test.js && node test/change_orders.test.js && node test/backup.test.js && node test/offsite.test.js && node test/offsite_sharepoint.test.js && node test/tracker_link_access.test.js && node test/bid_calendar.test.js"
+    "test": "node test/calc.test.js && node test/parser.test.js && node test/change_orders.test.js && node test/backup.test.js && node test/offsite.test.js && node test/offsite_sharepoint.test.js && node test/tracker_link_access.test.js && node test/bid_calendar.test.js && node test/crm_links.test.js"
   },
   "engines": {
     "node": "20.x"
