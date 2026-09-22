@@ -147,20 +147,23 @@ router.put('/:id', (req, res) => {
   }
 
   // Page access: which menu pages this person sees. null = role defaults.
-  // Superadmin always sees everything. An admin may set it for estimators; the
-  // superadmin may set it for admins and estimators. Nobody edits their own.
+  // An admin may set it for estimators; the superadmin may set it for admins and
+  // estimators. A superadmin may also set their own, which is how they choose
+  // what sits on their left ribbon; nobody else edits their own, and nobody
+  // edits a superadmin's but that superadmin. Settings is not one of these
+  // pages, so a superadmin can always get back in and turn pages on again.
   if (hasPageAccess) {
     pageAccess = cleanIncoming(req.body.page_access);
     if (pageAccess === undefined) {
       return res.status(400).json({ error: 'Invalid page list.' });
     }
-    if (id === req.user.userId) {
+    if (id === req.user.userId && req.user.role !== 'superadmin') {
       return res.status(400).json({ error: 'You cannot change your own page access.' });
     }
     const target = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
     if (!target) return res.status(404).json({ error: 'User not found.' });
-    if (target.role === 'superadmin') {
-      return res.status(400).json({ error: 'A superadmin always sees every page.' });
+    if (target.role === 'superadmin' && id !== req.user.userId) {
+      return res.status(403).json({ error: 'Only that superadmin can change their own page access.' });
     }
     if (target.role !== 'estimator' && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Only the superadmin can change an admin\'s page access.' });
