@@ -17,15 +17,26 @@ function isAdminish(role) {
 
 const SOURCES = ['Email', 'BuildingConnected', 'PlanHub', 'Procore', 'Phone', 'Other'];
 // "Start working by" is a lead time off the due date, not a typed date.
-const LEAD_DAYS = [1, 2, 5];
+// Counted in BUSINESS days, so a bid due Monday with 2 days starts Thursday.
+const LEAD_DAYS = [2, 3, 5];
 const DEFAULT_LEAD = 2;
+// The longest a lead time can run in calendar days (5 business days over two
+// weekends is 9). Used to keep the calendar's date window wide enough.
+const MAX_LEAD_CALENDAR_DAYS = 9;
 
-// The day to start work on a bid: its due date less its lead time.
+// The day to start work on a bid: that many business days before it is due.
+// A due date on a weekend counts back from the weekend day itself.
 function startDay(dueDate, leadDays) {
   const d = isoDate(dueDate);
   if (!d) return '';
   const [y, m, day] = d.split('-').map(Number);
-  const at = new Date(Date.UTC(y, m - 1, day - (Number(leadDays) || DEFAULT_LEAD)));
+  const at = new Date(Date.UTC(y, m - 1, day));
+  let left = LEAD_DAYS.includes(Number(leadDays)) ? Number(leadDays) : DEFAULT_LEAD;
+  while (left > 0) {
+    at.setUTCDate(at.getUTCDate() - 1);
+    const dow = at.getUTCDay();
+    if (dow !== 0 && dow !== 6) left -= 1;   // Sunday, Saturday
+  }
   return at.toISOString().slice(0, 10);
 }
 
@@ -50,7 +61,8 @@ function shape(r) {
     source: r.source,
     due_date: r.due_date,
     due_time: r.due_time || '',
-    start_lead_days: r.start_lead_days == null ? DEFAULT_LEAD : r.start_lead_days,
+    // An old row set to 24 hrs, an option that no longer exists, reads as 2 days.
+    start_lead_days: LEAD_DAYS.includes(r.start_lead_days) ? r.start_lead_days : DEFAULT_LEAD,
     start_date: startDay(r.due_date, r.start_lead_days),
     due_at: due ? due.toISOString() : null,
     assigned_to: r.assigned_to,
@@ -148,13 +160,17 @@ router.get('/', (req, res) => {
     else if (u) userFilter = Number(u) || req.user.userId;
   }
 
+  // The start day is business days back, which SQLite cannot work out, so the
+  // query casts a wide enough net and the exact check happens below.
   const rows = db.prepare(ENTRY_SELECT + `
     WHERE c.deleted_at IS NULL
       AND ((c.due_date BETWEEN ? AND ?)
-           OR (date(c.due_date, '-' || IFNULL(c.start_lead_days, 2) || ' days') BETWEEN ? AND ?))
+           OR (date(c.due_date, '-${MAX_LEAD_CALENDAR_DAYS} days') <= ? AND c.due_date >= ?))
       ${userFilter ? 'AND c.assigned_to = ?' : ''}
     ORDER BY c.due_date, IFNULL(c.due_time, '99:99'), c.id
-  `).all(from, to, from, to, ...(userFilter ? [userFilter] : []));
+  `).all(from, to, to, from, ...(userFilter ? [userFilter] : []))
+    .filter(r => (r.due_date >= from && r.due_date <= to)
+              || (startDay(r.due_date, r.start_lead_days) >= from && startDay(r.due_date, r.start_lead_days) <= to));
 
   const users = admin
     ? db.prepare("SELECT id, name, email FROM users WHERE active = 1 ORDER BY name ASC").all()

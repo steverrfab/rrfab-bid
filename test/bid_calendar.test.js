@@ -19,6 +19,18 @@ const JWT_SECRET = 'test-secret';
 
 // Days from today as YYYY-MM-DD (UTC is close enough for these checks).
 const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+// N business days before an ISO date, the same way the server works it out.
+const startDay = (iso, lead) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d));
+  let left = lead;
+  while (left > 0) {
+    at.setUTCDate(at.getUTCDate() - 1);
+    const dow = at.getUTCDay();
+    if (dow !== 0 && dow !== 6) left -= 1;
+  }
+  return at.toISOString().slice(0, 10);
+};
 const inHours = h => {
   // An Eastern wall-clock date/time h hours from now.
   const at = new Date(Date.now() + h * 36e5);
@@ -123,7 +135,8 @@ async function run() {
   t('no GC needed, time optional', r.status === 201 && r.body.due_time === '' && r.body.due_at === null && r.body.client_gc === '', r);
   t('estimator cannot assign to someone else', r.body.assigned_to === 23, r.body.assigned_to);
   t('fields saved', r.body.source === 'PlanHub' && r.body.docs_url === 'https://planhub.example/x' && r.body.estimate === null, r.body);
-  t('start day defaults to 2 days before due', r.body.start_lead_days === 2 && r.body.start_date === day(12), [r.body.start_lead_days, r.body.start_date]);
+  t('start day defaults to 2 business days before due', r.body.start_lead_days === 2 && r.body.start_date === startDay(day(14), 2), [r.body.start_lead_days, r.body.start_date, startDay(day(14), 2)]);
+  t('the start day is never a weekend', [1, 2, 3, 4, 5].includes(new Date(r.body.start_date + 'T12:00:00Z').getUTCDay()), r.body.start_date);
   const umbc = r.body.id;
   r = await call('joe', 'POST', '/api/calendar', { project_name: 'Towson Library Stair Package', source: 'BuildingConnected', due_date: day(8), due_time: '12:00' });
   const towsonBM = r.body.id;
@@ -133,7 +146,11 @@ async function run() {
   t('admin can add one for Mike', r.status === 201 && r.body.assigned_to === 25 && r.body.estimator_name === 'Mike R', r.body);
   const bwi = r.body.id;
   r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 5 });
-  t('start day follows the lead time', r.body.start_lead_days === 5 && r.body.start_date === day(9), [r.body.start_lead_days, r.body.start_date]);
+  t('start day follows the lead time', r.body.start_lead_days === 5 && r.body.start_date === startDay(day(14), 5), [r.body.start_lead_days, r.body.start_date, startDay(day(14), 5)]);
+  r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 3 });
+  t('3 business days works too', r.body.start_lead_days === 3 && r.body.start_date === startDay(day(14), 3), [r.body.start_lead_days, r.body.start_date]);
+  r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 1 });
+  t('24 hrs is gone and falls back to 2 days', r.body.start_lead_days === 2, r.body.start_lead_days);
   r = await call('joe', 'PUT', '/api/calendar/' + umbc, { start_lead_days: 99 });
   t('a lead time that is not offered falls back to 2 days', r.body.start_lead_days === 2, r.body.start_lead_days);
   r = await call('joe', 'PUT', '/api/calendar/' + umbc, { due_time: '11:00', notes: 'walkthrough Tue' });
@@ -162,7 +179,8 @@ async function run() {
   t('Mike cannot remove Joe\'s', r.status === 403, r.status);
   r = await call('boss', 'GET', all + '&user=25');
   t('admin views Mike', r.body.entries.length === 2 && r.body.entries.every(e => e.assigned_to === 25), r.body.entries);
-  r = await call('boss', 'GET', `/api/calendar?from=${day(11)}&to=${day(13)}&user=23`);
+  const umbcStart = startDay(day(14), 2);
+  r = await call('boss', 'GET', `/api/calendar?from=${umbcStart}&to=${umbcStart}&user=23`);
   t('start day inside the window brings the bid in', r.body.entries.some(e => e.id === umbc), r.body.entries.map(e => e.id));
 
   console.log('\n--- 4. link, unlink, due date follows the calendar ---');
