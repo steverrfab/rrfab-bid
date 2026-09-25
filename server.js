@@ -86,6 +86,7 @@ require('./lib/bid_reminders').start(db);
 app.use('/api/backup', require('./routes/backup'));
 // Automatic off-site copies on a timer. A no-op until the S3 variables are set.
 require('./lib/offsite_backup').start(require('./db'));
+require('./lib/backblaze_backup').start(db);
 // Reports — company-wide bid activity and dollar volume. Admins by default;
 // an admin can turn it on for anyone else on the Users screen.
 app.use('/api/reports', requirePage('reports'), require('./routes/reports'));
