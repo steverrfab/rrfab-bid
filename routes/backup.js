@@ -87,12 +87,12 @@ router.get('/db', (req, res) => {
   const stream = fs.createReadStream(tmp);
   stream.on('error', (err) => {
     console.error('[backup] stream failed:', err.message);
-    cleanup();
     res.destroy();
   });
-  // Fires on success and on a dropped connection alike, so the temp file is
-  // never left behind.
-  res.on('close', cleanup);
+  // Close the file handle before unlinking (Windows refuses deletion while it
+  // is open). An abandoned response must also stop reading the snapshot.
+  stream.once('close', cleanup);
+  res.once('close', () => stream.destroy());
   stream.pipe(res);
   console.log('[backup] snapshot served: ' + size + ' bytes');
 });
@@ -116,6 +116,7 @@ router.get('/status', (req, res) => {
     ok: true,
     counts,
     offsite: require('../lib/offsite_backup').state,
+    backblaze: require('../lib/backblaze_backup').state,
     time: new Date().toISOString()
   });
 });
