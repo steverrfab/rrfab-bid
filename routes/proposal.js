@@ -47,6 +47,9 @@ router.get('/', (req, res) => {
       .map(r => loadFullEstimate(r.id))
       .filter(Boolean);
 
+    // A change order's proposal goes out under its change order number.
+    bundle.changeOrderLabel = require('./change_orders').changeOrderLabelFor(bundle.estimate);
+
     generateProposal(res, bundle);
   } catch (err) {
     console.error('proposal error:', err);

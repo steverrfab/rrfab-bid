@@ -756,3 +756,12 @@ function priceChangedOnEstimate(estimateId) {
 module.exports = router;
 module.exports.trackerFeedRows = trackerFeedRows;
 module.exports.priceChangedOnEstimate = priceChangedOnEstimate;
+
+// The number a change order goes out under (job # plus CO #), for the proposal
+// PDF of the estimate that prices it. Null when the estimate is not a CO.
+module.exports.changeOrderLabelFor = function changeOrderLabelFor(estimate) {
+  if (!estimate || estimate.change_order_id == null) return null;
+  const co = db.prepare('SELECT * FROM change_orders WHERE id = ?').get(estimate.change_order_id);
+  if (!co) return null;
+  return label(co, loadParent(co.estimate_id));
+};
