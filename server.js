@@ -90,6 +90,14 @@ require('./lib/backblaze_backup').start(db);
 // Reports — company-wide bid activity and dollar volume. Admins by default;
 // an admin can turn it on for anyone else on the Users screen.
 app.use('/api/reports', requirePage('reports'), require('./routes/reports'));
+// QuickBooks Online: Won bid -> controller approval -> QB project + estimate.
+{
+  const qboRoutes = require('./routes/qbo');
+  app.get(qboRoutes.callbackPath(), qboRoutes.callback);
+  if (qboRoutes.callbackPath() !== '/api/qbo/callback') app.get('/api/qbo/callback', qboRoutes.callback);
+  app.use('/api/estimates/:id/qbo', estimateOwnershipCheck, qboRoutes.estimateRouter);
+  app.use('/api/qbo', qboRoutes.router);
+}
 
 // ---- Root ----
 app.get('/', (req, res) => {

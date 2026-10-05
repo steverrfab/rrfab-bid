@@ -4,7 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const { generateToken, requireAdmin } = require('../lib/auth');
 const { sendInvite, sendPasswordReset } = require('../lib/email');
-const { PAGES, cleanIncoming, effectivePages, effectiveTrackerRole, effectiveCrmRole } = require('../lib/access');
+const { PAGES, cleanIncoming, effectivePages, effectiveTrackerRole, effectiveCrmRole, effectiveQbRole, QB_ROLES } = require('../lib/access');
 
 // All user management routes require admin role, with one exception: anyone
 // may update their own name and phone from the Profile page.
@@ -39,7 +39,7 @@ const CRM_ROLES = ['none', 'user'];
 router.get('/', (req, res) => {
   const users = db.prepare(`
     SELECT
-      u.id, u.email, u.name, u.role, u.active, u.created_at, u.tracker_role, u.crm_role, u.page_access,
+      u.id, u.email, u.name, u.role, u.active, u.created_at, u.tracker_role, u.crm_role, u.qb_role, u.page_access,
       (SELECT used_at  FROM invites WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as invite_used_at,
       (SELECT expires_at FROM invites WHERE user_id = u.id AND used_at IS NULL
          AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1) as pending_invite_expires
@@ -53,6 +53,7 @@ router.get('/', (req, res) => {
     u.pages = effectivePages(u);
     u.tracker_role = effectiveTrackerRole(u);
     u.crm_role = effectiveCrmRole(u);
+    u.qb_role = effectiveQbRole(u);
     u.page_access = Array.isArray(custom) ? custom : null;
   }
   res.json({ users, pages: PAGES });
@@ -106,11 +107,11 @@ router.post('/invite', async (req, res) => {
   res.json({ ok: true, inviteUrl, emailResult });
 });
 
-// PUT /api/users/:id  { role?, active?, password?, name?, phone?, tracker_role?, crm_role? }
+// PUT /api/users/:id  { role?, active?, password?, name?, phone?, tracker_role?, crm_role?, qb_role? }
 router.put('/:id', (req, res) => {
   const { signToken, hashPassword } = require('../lib/auth');
   const id = Number(req.params.id);
-  const { role, active, password, name, phone, tracker_role, crm_role } = req.body || {};
+  const { role, active, password, name, phone, tracker_role, crm_role, qb_role } = req.body || {};
   const hasPageAccess = Object.prototype.hasOwnProperty.call(req.body || {}, 'page_access');
   let pageAccess;
 
@@ -144,6 +145,9 @@ router.put('/:id', (req, res) => {
   }
   if (crm_role !== undefined && !CRM_ROLES.includes(crm_role)) {
     return res.status(400).json({ error: 'Invalid CRM access.' });
+  }
+  if (qb_role !== undefined && !QB_ROLES.includes(qb_role)) {
+    return res.status(400).json({ error: 'Invalid QuickBooks access.' });
   }
 
   // Page access: which menu pages this person sees. null = role defaults.
@@ -189,6 +193,7 @@ router.put('/:id', (req, res) => {
   if (phone !== undefined)  { sets.push('phone = ?');  params.push(phone ? phone.trim() : null); }
   if (tracker_role !== undefined) { sets.push('tracker_role = ?'); params.push(tracker_role); }
   if (crm_role !== undefined) { sets.push('crm_role = ?'); params.push(crm_role); }
+  if (qb_role !== undefined) { sets.push('qb_role = ?'); params.push(qb_role); }
   if (hasPageAccess) { sets.push('page_access = ?'); params.push(pageAccess === null ? null : JSON.stringify(pageAccess)); }
   // A role change puts page access back to the new role's defaults, so a
   // custom list written for one role never carries over to another.

@@ -5,7 +5,7 @@ const router = express.Router();
 const db = require('../db');
 const { signToken, hashPassword, verifyPassword, generateToken } = require('../lib/auth');
 const { sendAccessRequestNotification } = require('../lib/email');
-const { effectivePages, effectiveTrackerRole, effectiveCrmRole } = require('../lib/access');
+const { effectivePages, effectiveTrackerRole, effectiveCrmRole, effectiveQbRole } = require('../lib/access');
 
 // The nav keys this person has ticked off in Customize, as a plain array.
 // Stored on users.sidebar_hidden as a JSON array of strings; anything else in
@@ -33,19 +33,19 @@ router.post('/login', (req, res) => {
   }
 
   const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), qb_role: effectiveQbRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) } });
 });
 
 // GET /api/auth/me  — returns current user from DB (requires bearer token)
 router.get('/me', (req, res) => {
   if (!req.user || !req.user.userId) return res.status(401).json({ error: 'not authenticated' });
-  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, crm_role, phone, page_access, sidebar_hidden FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, name, role, active, tracker_role, crm_role, qb_role, phone, page_access, sidebar_hidden FROM users WHERE id = ?').get(req.user.userId);
   if (!user || !user.active) return res.status(401).json({ error: 'user not found or inactive' });
   // pages: the menu items this person may see (see lib/access.js).
   // crm_role belongs here as much as tracker_role does. Login returned it and this did
   // not, so the CRM button showed up once and then disappeared on the next page load.
   const { page_access, ...rest } = user;
-  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) });
+  res.json({ ...rest, tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), qb_role: effectiveQbRole(user), pages: effectivePages(user), sidebar_hidden: sidebarHidden(user) });
 });
 
 // PUT /api/auth/me/sidebar  { hidden: ["tax","trash"] }
@@ -168,7 +168,7 @@ router.post('/sso-exchange', (req, res) => {
     token,
     user: {
       id: user.id, email: user.email, name: user.name, role: user.role,
-      tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), pages: effectivePages(user),
+      tracker_role: effectiveTrackerRole(user), crm_role: effectiveCrmRole(user), qb_role: effectiveQbRole(user), pages: effectivePages(user),
       sidebar_hidden: sidebarHidden(user),
     },
   });
