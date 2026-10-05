@@ -995,9 +995,11 @@ router.get('/:id/resubmit-preview', (req, res) => {
 //   bid_calendar        the Bid Calendar invite a bid is linked to. One estimate
 //                       per calendar bid, so a copy starts unlinked.
 //   bid_reminders       the log of reminder emails already sent for the original.
+//   qbo_push_requests   the QuickBooks approval queue. Belongs to the awarded job
+//                       that was sent, never to a copy of it.
 const CLONE_SKIP_TABLES = new Set([
   'estimate_locks', 'estimate_resubmits', 'change_orders', 'sov_items',
-  'bid_calendar', 'bid_reminders'
+  'bid_calendar', 'bid_reminders', 'qbo_push_requests'
 ]);
 
 // Columns never copied verbatim: the child row's own key, the parent pointer
