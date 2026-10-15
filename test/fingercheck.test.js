@@ -7,8 +7,8 @@
 //   - SSN, birth date and address are never stored
 //   - one current rate per employee (regular, not overtime)
 //   - shop and field averages are weighted by 12 month hours
-//   - salaried people count at what they actually earned per hour
-//   - hours per head skips people hired partway through the year
+//   - hours per week come from the weeks actually paid, so a short history works
+//   - gross pay and salaries are never stored or shown; carried-over pay can't skew anything
 //   - estimators see the averages but never anyone's pay
 //   - a bad key gives a plain message
 //   - nothing changes company rates or an existing estimate
@@ -71,7 +71,8 @@ const RATES = [
   { EmployeeID: 4, RateCode: 'SAL', StartDate: '2026-01-01', Rate: 80000 }
 ];
 // One check per employee in the first month called. Mike 2500 hrs, Joe 500 hrs.
-const CHECK = (empId, hours, gross, er) => ({ Employee: { EmployeeID: empId, SSN: 'x' }, PayrollCheck: { EmployeeID: empId, TotalHours: hours, GrossAmount: gross, TotalEmployerTaxes: er, TotalWorkersComp: 0 } });
+const CHECK = (empId, hours, gross, date) => ({ Employee: { EmployeeID: empId, SSN: 'x' }, PayrollCheck: { EmployeeID: empId, CheckDate: date + 'T00:00:00', TotalHours: hours, GrossAmount: gross, TotalEmployerTaxes: 1, TotalWorkersComp: 0 } });
+const WEEKS = ['2026-09-18', '2026-09-25', '2026-10-02', '2026-10-09'];
 let fcCalls = [], checksServed = false, badKey = false;
 const fake = http.createServer((req, res) => {
   fcCalls.push({ url: req.url, key: req.headers.apikey, secret: req.headers.clientsecretkey });
@@ -82,7 +83,17 @@ const fake = http.createServer((req, res) => {
   else if (req.url.includes('GetAllPayrollChecksForDateRange')) {
     if (!checksServed) {
       checksServed = true;
-      body = [CHECK(1, 2500, 75000, 6000), CHECK(2, 500, 10000, 800), CHECK(3, 1800, 63000, 5000), CHECK(4, 2080, 80000, 6500), CHECK(99, 100, 2000, 160)];
+      // Fingercheck is new: four weeks of history. Mike 45 hrs/wk, Joe two weeks at
+      // 20, Iron 40, the salaried office person 40. A lump of pay carried over from
+      // the old system arrives as a check with no hours and must not count.
+      body = [
+        ...WEEKS.map(d => CHECK(1, 45, 1350, d)),
+        CHECK(2, 20, 400, WEEKS[2]), CHECK(2, 20, 400, WEEKS[3]),
+        ...WEEKS.map(d => CHECK(3, 40, 1400, d)),
+        ...WEEKS.map(d => CHECK(4, 40, 2307.69, d)),
+        CHECK(1, 0, 61234.56, '2026-09-11'),
+        CHECK(99, 30, 600, WEEKS[0])
+      ];
     }
   }
   res.writeHead(200, { 'content-type': 'application/json' });
@@ -136,14 +147,21 @@ async function run() {
   t('everyone starts unassigned', r.body.unassigned === 4, r.body.unassigned);
 
   const mike = r.body.employees.find(e => e.number === '100');
-  t('Mike gets his current regular rate, not overtime or last year', mike && mike.rate === 30, mike);
-  t('Mike has 12 month hours and taxes', mike && mike.hours_12mo === 2500 && mike.employer_taxes_12mo === 6000, mike);
+  const stored = JSON.parse(require('better-sqlite3')(pathx.join(DATA_DIR, 'rrbid.db'), { readonly: true })
+    .prepare('SELECT employees_json FROM fingercheck_snapshots ORDER BY id DESC LIMIT 1').get().employees_json);
+  t('Mike gets his current regular rate, not overtime or last year', stored.find(e => e.number === '100').rate === 30);
+  t('nobody\'s pay rate is sent to the page', r.body.employees.every(e => !('rate' in e)), mike);
+  t('Mike: 45 hrs a week over 4 paid weeks', mike && mike.hours_per_week === 45 && mike.weeks === 4, mike);
+  const office = r.body.employees.find(e => e.number === '300');
+  t('a salary is never shown', office && !JSON.stringify(r.body).includes('80000') && !JSON.stringify(r.body).includes('2307'), office);
+  t('no gross pay is sent to the page', !/gross|61234|1350/.test(JSON.stringify(r.body)), Object.keys(mike || {}));
 
   const raw = fsx.readFileSync(pathx.join(DATA_DIR, 'rrbid.db')).toString('latin1');
   const snapRow = require('better-sqlite3')(pathx.join(DATA_DIR, 'rrbid.db'), { readonly: true })
     .prepare('SELECT employees_json, totals_json FROM fingercheck_snapshots ORDER BY id DESC LIMIT 1').get();
   t('SSN, birth date and address are never stored', !/123-45-6789|1980-01-01|Main St|SSN|DOB/.test(snapRow.employees_json + snapRow.totals_json) && !raw.includes('123-45-6789'));
-  t('company totals include people who have left', JSON.parse(snapRow.totals_json).hours === 6980, snapRow.totals_json);
+  t('gross pay and salaries are never stored', !/gross|61234|80000|2307/.test(snapRow.employees_json + snapRow.totals_json), snapRow.employees_json.slice(0, 200));
+  t('company totals count the paid weeks', JSON.parse(snapRow.totals_json).paid_weeks === 4, snapRow.totals_json);
 
   // ---- groups ----
   r = await call('joe', 'PUT', '/api/settings/fingercheck/groups', { groups: { 100: 'direct_shop' } });
@@ -152,18 +170,20 @@ async function run() {
   t('admin sets groups', r.status === 200 && r.body.unassigned === 0, r.body.unassigned);
   const shop = r.body.groups.direct_shop;
   // (30*2500 + 20*500) / 3000 = 28.33
-  t('shop average is weighted by hours (28.33, not 25)', shop.avg_wage === 28.33 && shop.weighted, shop);
+  // (30 x 180 + 20 x 40) / 220 = 28.18
+  t('shop average is weighted by hours (28.18, not 25)', shop.avg_wage === 28.18 && shop.weighted, shop);
   t('shop head count is 2', shop.headcount === 2, shop);
-  t('shop employer taxes as % of gross', shop.employer_tax_pct === 0.08, shop);
-  t('hours per head skips the mid-year hire (2500, not 1500)', shop.hours_per_head === 2500, shop);
+  t('shop hours per week averages each person over the weeks they were paid (32.5)', shop.hours_per_week === 32.5, shop);
+  t('shop hours per year is that times 52 (1690)', shop.hours_per_year === 1690, shop);
+  t('shows how many weeks of data there are', shop.weeks_of_data === 4, shop);
   t('field average is 35', r.body.groups.direct_field.avg_wage === 35, r.body.groups.direct_field);
   // 80,000 / 2,080 = 38.46
-  t('salaried office person counts at actual pay per hour', r.body.groups.office.headcount === 1 && r.body.groups.office.avg_wage === 38.46 && r.body.groups.office.left_out === 0, r.body.groups.office);
+  t('salaried office person counts in head count and hours, not the wage average', r.body.groups.office.headcount === 1 && r.body.groups.office.avg_wage === null && r.body.groups.office.salaried === 1 && r.body.groups.office.hours_per_week === 40, r.body.groups.office);
   t('support group is empty, not broken', r.body.groups.support.headcount === 0 && r.body.groups.support.avg_wage === null, r.body.groups.support);
 
   // ---- privacy ----
   r = await call('joe', 'GET', '/api/settings/fingercheck');
-  t('estimator sees the averages', r.status === 200 && r.body.groups.direct_shop.avg_wage === 28.33);
+  t('estimator sees the averages', r.status === 200 && r.body.groups.direct_shop.avg_wage === 28.18);
   t('estimator never sees anyone\'s pay', r.body.employees === undefined && r.body.totals === undefined && !JSON.stringify(r.body).includes('Mike'), Object.keys(r.body));
 
   // groups survive a refresh; clearing a tag works
