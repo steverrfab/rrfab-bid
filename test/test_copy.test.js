@@ -13,7 +13,8 @@ const jwt = require('jsonwebtoken');
 
 const LIVE_DIR = fsx.mkdtempSync(pathx.join(os.tmpdir(), 'tc-live-'));
 const TEST_DIR = fsx.mkdtempSync(pathx.join(os.tmpdir(), 'tc-test-'));
-const LIVE_PORT = 4681, TEST_PORT = 4682;
+const LIVE_PORT = 4681, TEST_PORT = 4682, PULL_PORT = 4683;
+const PULL_DIR = fsx.mkdtempSync(pathx.join(os.tmpdir(), 'tc-pull-'));
 const JWT_SECRET = 'test-secret';
 
 process.env.DATA_DIR = LIVE_DIR;
@@ -36,7 +37,7 @@ async function start(port, dir, env = {}) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   kids.push(child);
-  let log = ''; child.stdout.on('data', d => { log += d; }); child.stderr.on('data', d => { log += d; });
+  let log = ''; child.stdout.on('data', d => { log += d; child.log = log; }); child.stderr.on('data', d => { log += d; child.log = log; });
   for (let i = 0; i < 80; i++) {
     await wait(250);
     try { const r = await fetch(`http://127.0.0.1:${port}/api/health`); if (r.ok) return child; } catch {}
@@ -45,7 +46,7 @@ async function start(port, dir, env = {}) {
 }
 
 async function run() {
-  await start(LIVE_PORT, LIVE_DIR);
+  await start(LIVE_PORT, LIVE_DIR, { TEST_COPY_PULL_KEY: 'p'.repeat(40) });
   const L = `http://127.0.0.1:${LIVE_PORT}`;
 
   let r = await fetch(L + '/api/settings/snapshot', { headers: { authorization: 'Bearer ' + tok(52, 'admin') } });
@@ -85,6 +86,25 @@ async function run() {
   t('set-password link for an existing user', r.status === 200 && /^https:\/\/test\.example\/#\/invite\/[0-9a-f]{64}$/.test(inv.link), inv);
   const info = await (await fetch(T + '/api/auth/invite/' + inv.link.split('/').pop())).json();
   t('the link works on the test copy', info && /boss@x\.test/i.test(JSON.stringify(info)), info);
+
+  // ---- pull at startup, the way the Railway test copy loads ----
+  r = await fetch(L + '/api/backup/test-copy-db', { headers: { 'x-integration-key': 'wrong' } });
+  t('live refuses a pull with the wrong key', r.status === 401, r.status);
+  const pullEnv = { TEST_COPY: '1', SEED_KEY: SEED, FRONTEND_URL: 'https://test.example', SEED_FROM_URL: L, SEED_PULL_KEY: 'p'.repeat(40), SEED_PULL_ID: 'one', SEED_INVITE_EMAIL: 'boss@x.test' };
+  let pc = await start(PULL_PORT, PULL_DIR, pullEnv);
+  const P = `http://127.0.0.1:${PULL_PORT}`;
+  for (let i = 0; i < 40 && pc.exitCode === null; i++) await wait(250);
+  t('test copy pulls live data on first start, then restarts', pc.exitCode === 1, pc.log && pc.log.slice(-300));
+  pc = await start(PULL_PORT, PULL_DIR, pullEnv);
+  h = await (await fetch(P + '/api/health')).json();
+  t('after restart it has the live data', h.estimates === 1, h);
+  await wait(500);
+  const m = (pc.log || '').match(/set-password link for boss@x\.test: (\S+)/);
+  t('a set-password link is written to the log', !!m && /^https:\/\/test\.example\/#\/invite\/[0-9a-f]{64}$/.test(m[1]), pc.log && pc.log.slice(-400));
+  pc.kill(); await wait(300);
+  pc = await start(PULL_PORT, PULL_DIR, pullEnv);
+  await wait(1500);
+  t('it does not pull again or loop on the same pull id', pc.exitCode === null && !/pulling live data/.test(pc.log || ''), pc.log && pc.log.slice(-300));
 
   // Live is untouched by any of this.
   h = await (await fetch(L + '/api/health')).json();

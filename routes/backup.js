@@ -97,6 +97,15 @@ router.get('/db', (req, res) => {
   console.log('[backup] snapshot served: ' + size + ' bytes');
 });
 
+// ---- GET /api/backup/test-copy-db ----
+// The same read-only copy, for the separate test copy of the Bid Tool to pull
+// its data from. Guarded by its own key, TEST_COPY_PULL_KEY, so it never shares
+// the backup key. Refused while that variable is unset.
+router.get('/test-copy-db', (req, res) => {
+  if (!integrationKeyOk(req, 'TEST_COPY_PULL_KEY')) return res.status(401).json({ error: 'invalid integration key' });
+  require('./snapshot').sendSnapshot(res, 'test copy pull');
+});
+
 // ---- GET /api/backup/status ----
 // Enough to prove the endpoint is reachable and the key is right, without
 // moving the database. Useful for checking a scheduled job is still wired up.

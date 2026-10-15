@@ -13,10 +13,8 @@ const db = require('../db');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  if (!req.user || req.user.role !== 'superadmin') {
-    return res.status(403).json({ error: 'Only a superadmin can download a copy of the database.' });
-  }
+// Writes a complete, consistent copy of the database to the response.
+function sendSnapshot(res, who) {
   const tmp = path.join(os.tmpdir(), 'rrbid-snapshot-' + crypto.randomBytes(6).toString('hex') + '.db');
   const cleanup = () => { try { fs.unlinkSync(tmp); } catch { /* gone */ } };
   try {
@@ -32,7 +30,15 @@ router.get('/', (req, res) => {
   stream.once('close', cleanup);
   res.once('close', () => stream.destroy());
   stream.pipe(res);
-  console.log('[snapshot] served to user ' + req.user.userId);
+  console.log('[snapshot] served to ' + who);
+}
+
+router.get('/', (req, res) => {
+  if (!req.user || req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Only a superadmin can download a copy of the database.' });
+  }
+  sendSnapshot(res, 'user ' + req.user.userId);
 });
 
 module.exports = router;
+module.exports.sendSnapshot = sendSnapshot;
