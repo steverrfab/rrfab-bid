@@ -116,6 +116,23 @@ async function run() {
   r = await call('joe', 'GET', `/api/estimates/${beforeId}/wages`);
   t('an estimate made before the save keeps its rates', near(role(r.body.rows, 'shop_worker').gl_pct, 0.11), role(r.body.rows, 'shop_worker'));
 
+  console.log('\n--- 3b. switched off by default: Settings is a sandbox ---');
+  r = await call('boss', 'GET', '/api/settings/wage-rates');
+  t('company rates start switched off', r.body.live === false, r.body.live);
+  r = await call('joe', 'POST', '/api/estimates', { project_name: 'Sandbox Bid' });
+  const sandboxId = r.body.estimate.id;
+  r = await call('joe', 'GET', `/api/estimates/${sandboxId}/wages`);
+  t('while off, a new estimate gets the built-in defaults', near(role(r.body.rows, 'shop_worker').gl_pct, 0.11) && r.body.company === null, role(r.body.rows, 'shop_worker'));
+  t('while off, the tab is not offered company rates', r.body.latest_company === null, r.body.latest_company);
+  r = await call('joe', 'POST', `/api/estimates/${sandboxId}/wages/reset`, {});
+  t('while off, reset is refused', r.status === 409, r.status);
+  r = await call('joe', 'PUT', '/api/settings/wage-rates/live', { live: true });
+  t('an estimator cannot switch them on', r.status === 403, r.status);
+  r = await call('tanja', 'PUT', '/api/settings/wage-rates/live', { live: true });
+  t('the controller can switch them on', r.status === 200 && r.body.live === true, r.body.live);
+  r = await call('joe', 'GET', `/api/estimates/${sandboxId}/wages`);
+  t('switching on does not touch an estimate already made', near(role(r.body.rows, 'shop_worker').gl_pct, 0.11) && r.body.company === null, role(r.body.rows, 'shop_worker'));
+
   console.log('\n--- 4. new estimates start on company rates ---');
   r = await call('joe', 'POST', '/api/estimates', { project_name: 'New Bid' });
   const newId = r.body.estimate.id;
@@ -167,6 +184,11 @@ async function run() {
   t('drivers save with the rates', r.status === 200 && r.body.current.drivers && r.body.current.drivers.payroll[0].count === 12, r.body && r.body.current);
   t('drivers keep only safe keys and short text', r.body.current.drivers.bad && !('no-good key' in r.body.current.drivers.bad) && r.body.current.drivers.bad.nan.length === 120, r.body.current.drivers.bad);
   const vDrivers = r.body.current.id;
+  r = await call('boss', 'PUT', '/api/settings/wage-rates/live', { live: false });
+  t('an admin can switch them off again', r.status === 200 && r.body.live === false, r.body.live);
+  r = await call('joe', 'POST', '/api/estimates', { project_name: 'Off Again' });
+  r = await call('joe', 'GET', `/api/estimates/${r.body.estimate.id}/wages`);
+  t('switched off again, new estimates get the built-in defaults', r.body.company === null && near(role(r.body.rows, 'shop_worker').gl_pct, 0.11), role(r.body.rows, 'shop_worker'));
   r = await call('joe', 'GET', '/api/settings/wage-rates');
   t('an estimator sees the rates but not the drivers (office pay)', r.status === 200 && r.body.current && r.body.current.rows && !('drivers' in r.body.current), r.body && r.body.current && Object.keys(r.body.current));
   r = await call('tanja', 'GET', '/api/settings/wage-rates');
