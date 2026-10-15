@@ -23,7 +23,7 @@ function payload(req) {
   const edit = canEdit(req);
   const current = cw.latestVersion();
   if (current && !edit) delete current.drivers;
-  return { current, history: cw.listVersions(), can_edit: edit };
+  return { current, history: cw.listVersions(), can_edit: edit, live: cw.isLive() };
 }
 
 router.get('/', (req, res) => {
@@ -42,6 +42,16 @@ router.put('/', (req, res) => {
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not save company wage rates.' });
   }
+  res.json(payload(req));
+});
+
+// Switch company rates on or off for new estimates (and the Reset button on an
+// estimate). Never changes an estimate that already exists.
+router.put('/live', (req, res) => {
+  if (!canEdit(req)) {
+    return res.status(403).json({ error: 'Only an admin or the controller can switch company wage rates on or off.' });
+  }
+  cw.setLive(!!(req.body && req.body.live));
   res.json(payload(req));
 });
 

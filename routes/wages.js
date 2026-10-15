@@ -25,7 +25,8 @@ function respond(id, res) {
   // rates existed.
   const versionId = rows.reduce((v, r) => v || r.company_version_id || null, null);
   const source = cw.getVersion(versionId);
-  const latest = cw.latestVersion();
+  // While company rates are switched off, the tab is not offered them.
+  const latest = cw.isLive() ? cw.latestVersion() : null;
   res.json({
     rows,
     company: source ? { id: source.id, saved_at: source.saved_at, saved_by_name: source.saved_by_name, rows: cw.estimateRowsFor(source) } : null,
@@ -94,6 +95,7 @@ router.put('/', (req, res) => {
 // wage rates, so it does not change.
 router.post('/reset', (req, res) => {
   const id = Number(req.params.id);
+  if (!cw.isLive()) return res.status(409).json({ error: 'Company wage rates are switched off in Settings, so there is nothing to reset to.' });
   const v = cw.latestVersion();
   if (!v) return res.status(409).json({ error: 'No company wage rates have been saved yet. Set them in Settings first.' });
   cw.applyToEstimate(id, v);
