@@ -9,6 +9,8 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 const DB_PATH = path.join(DATA_DIR, 'rrbid.db');
+// Test copy only: load a database handed over from the live app. No-op live.
+require('./lib/test_copy').swapInSeed();
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');

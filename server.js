@@ -69,6 +69,10 @@ app.use('/api/settings/wage-rates', require('./routes/company_wages'));
 // Fingercheck payroll pull. Averages readable by everyone signed in; pulling,
 // per-employee pay and group tags are admin or controller only (checked in the route).
 app.use('/api/settings/fingercheck', require('./routes/fingercheck'));
+// Superadmin-only full database copy, used to load the test copy. Checked in the route.
+app.use('/api/settings/snapshot', require('./routes/snapshot'));
+// Test copy only: load a database and make set-password links. 404 in the live app.
+app.use('/api/test-copy', require('./lib/test_copy').router());
 app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
 app.use('/api/crm', require('./routes/crm'));
 // Server-to-server door for the CRM (the unlinked queue). Guarded inside by CRM_KEY,
