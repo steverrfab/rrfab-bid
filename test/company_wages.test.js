@@ -160,6 +160,27 @@ async function run() {
   }
   r = await call('joe', 'POST', `/api/estimates/301/wages/reset`, {});
   t('reset also works on an old estimate when asked', r.status === 200 && r.body.company && r.body.company.id === 2, r.body.company);
+  // Rate drivers are kept with each version, and never touch an estimate.
+  const before301 = (await call('joe', 'GET', `/api/estimates/301/wages`)).body.rows;
+  const DRIVERS = { payroll: [{ key: 'direct_shop', count: 12, rate: 28, hours: 2080 }], overhead: [{ name: 'SMECO', monthly: 6000 }], wc: { mod: 1.25 }, bad: { 'no-good key': 1, nan: 'x'.repeat(500) } };
+  r = await call('boss', 'PUT', '/api/settings/wage-rates', { rows: COMPANY, drivers: DRIVERS });
+  t('drivers save with the rates', r.status === 200 && r.body.current.drivers && r.body.current.drivers.payroll[0].count === 12, r.body && r.body.current);
+  t('drivers keep only safe keys and short text', r.body.current.drivers.bad && !('no-good key' in r.body.current.drivers.bad) && r.body.current.drivers.bad.nan.length === 120, r.body.current.drivers.bad);
+  const vDrivers = r.body.current.id;
+  r = await call('joe', 'GET', '/api/settings/wage-rates');
+  t('an estimator sees the rates but not the drivers (office pay)', r.status === 200 && r.body.current && r.body.current.rows && !('drivers' in r.body.current), r.body && r.body.current && Object.keys(r.body.current));
+  r = await call('tanja', 'GET', '/api/settings/wage-rates');
+  t('the controller sees the drivers', r.body.current.drivers && r.body.current.drivers.payroll[0].count === 12);
+  r = await call('boss', 'PUT', '/api/settings/wage-rates', { rows: COMPANY });
+  t('a save without drivers carries the last drivers forward', r.body.current.id === vDrivers + 1 && r.body.current.drivers && r.body.current.drivers.overhead[0].monthly === 6000, r.body.current.drivers);
+  r = await call('boss', 'PUT', '/api/settings/wage-rates', { rows: COMPANY, drivers: { big: Array(200).fill('y'.repeat(120)).map(x => ({ a: x, b: x, c: x })) } });
+  t('oversized drivers are refused', r.status === 400, r.status);
+  r = await call('tanja', 'PUT', '/api/settings/wage-rates', { rows: COMPANY, drivers: null });
+  t('drivers can be cleared', r.status === 200 && r.body.current.drivers === null, r.body && r.body.current);
+  r = await call('joe', 'PUT', '/api/settings/wage-rates', { rows: COMPANY, drivers: DRIVERS });
+  t('an estimator cannot save drivers', r.status === 403, r.status);
+  const after301 = (await call('joe', 'GET', `/api/estimates/301/wages`)).body.rows;
+  t('saving drivers leaves an existing estimate exactly as it was', JSON.stringify(before301) === JSON.stringify(after301));
 }
 
 run()
