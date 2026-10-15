@@ -42,4 +42,11 @@ router.put('/groups', (req, res) => {
   res.json(payload(req));
 });
 
+// One person's paychecks: dates, pay periods and hours only. For checking the hours.
+router.get('/checks/:employeeNumber', async (req, res) => {
+  if (!canEdit(req)) return res.status(403).json({ error: 'Only an admin or the controller can see paychecks.' });
+  try { res.json({ checks: await fc.checkList(String(req.params.employeeNumber).slice(0, 40)) }); }
+  catch (err) { res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not read paychecks.' }); }
+});
+
 module.exports = router;

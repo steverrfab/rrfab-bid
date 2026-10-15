@@ -87,6 +87,7 @@ const fake = http.createServer((req, res) => {
   let body = [];
   if (req.url.includes('GetAllActiveEmployees')) body = EMPLOYEES;
   else if (req.url.includes('GetEmployeeActiveRates')) body = RATES;
+  else if (req.url.includes('ByEmployeeNumber')) body = [CHECK(1, 45, 1350, WEEKS[0])];
   else if (req.url.includes('GetAllPayrollChecksForDateRange')) {
     if (!checksServed) {
       checksServed = true;
@@ -200,6 +201,12 @@ async function run() {
   await call('boss', 'POST', '/api/settings/fingercheck/refresh');
   r = await call('boss', 'PUT', '/api/settings/fingercheck/groups', { groups: { 300: null } });
   t('groups survive a refresh and a tag can be cleared', r.body.groups.direct_shop.headcount === 2 && r.body.unassigned === 1, r.body);
+
+  // ---- one person's paychecks ----
+  r = await call('joe', 'GET', '/api/settings/fingercheck/checks/100');
+  t('an estimator cannot see paychecks', r.status === 403, r.status);
+  r = await call('boss', 'GET', '/api/settings/fingercheck/checks/100');
+  t('admin sees check dates, periods and hours, no dollars', r.status === 200 && r.body.checks[0].hours === 45 && r.body.checks[0].period_end && !/1350|gross|amount/i.test(JSON.stringify(r.body)), r.body);
 
   // ---- bad key ----
   badKey = true;
