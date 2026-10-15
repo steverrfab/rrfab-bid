@@ -1,6 +1,6 @@
 'use strict';
 // Settings > Company Wage Rates.
-// Anyone signed in can read them (estimators see them on the Wage Rates tab).
+// Anyone signed in can read the rates (estimators see them on the Wage Rates tab).
 // Only an admin or a QuickBooks controller can change them. A save never touches
 // an existing estimate; it only changes what new estimates start with.
 const express = require('express');
@@ -17,8 +17,13 @@ function canEdit(req) {
   return u.role === 'admin' || u.role === 'superadmin' || effectiveQbRole(u) === 'controller';
 }
 
+// The rate drivers include pay by group, so office pay. Only the people who
+// can change the rates see them; everyone else gets the rates alone.
 function payload(req) {
-  return { current: cw.latestVersion(), history: cw.listVersions(), can_edit: canEdit(req) };
+  const edit = canEdit(req);
+  const current = cw.latestVersion();
+  if (current && !edit) delete current.drivers;
+  return { current, history: cw.listVersions(), can_edit: edit };
 }
 
 router.get('/', (req, res) => {
@@ -32,7 +37,11 @@ router.put('/', (req, res) => {
   const rows = req.body && req.body.rows;
   if (!rows || typeof rows !== 'object') return res.status(400).json({ error: 'Send the rates as rows by role.' });
   const name = (db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.userId) || {}).name || req.user.name;
-  cw.saveVersion(rows, { userId: req.user.userId, name });
+  try {
+    cw.saveVersion(rows, { userId: req.user.userId, name }, req.body.drivers);
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not save company wage rates.' });
+  }
   res.json(payload(req));
 });
 
