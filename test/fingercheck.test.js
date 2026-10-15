@@ -71,7 +71,14 @@ const RATES = [
   { EmployeeID: 4, RateCode: 'SAL', StartDate: '2026-01-01', Rate: 80000 }
 ];
 // One check per employee in the first month called. Mike 2500 hrs, Joe 500 hrs.
-const CHECK = (empId, hours, gross, date) => ({ Employee: { EmployeeID: empId, SSN: 'x' }, PayrollCheck: { EmployeeID: empId, CheckDate: date + 'T00:00:00', TotalHours: hours, GrossAmount: gross, TotalEmployerTaxes: 1, TotalWorkersComp: 0 } });
+// Pay period ends the Friday before the check; one week long unless days says otherwise.
+const CHECK = (empId, hours, gross, date, days = 7) => {
+  const end = new Date(Date.parse(date + 'T00:00:00Z') - 7 * 86400000);
+  const begin = new Date(end.getTime() - (days - 1) * 86400000);
+  return { Employee: { EmployeeID: empId, SSN: 'x' }, PayrollCheck: { EmployeeID: empId, CheckDate: date + 'T00:00:00',
+    PeriodBegin: begin.toISOString().slice(0, 10) + 'T00:00:00', PeriodEnd: end.toISOString().slice(0, 10) + 'T00:00:00',
+    TotalHours: hours, GrossAmount: gross, TotalEmployerTaxes: 1, TotalWorkersComp: 0 } };
+};
 const WEEKS = ['2026-09-18', '2026-09-25', '2026-10-02', '2026-10-09'];
 let fcCalls = [], checksServed = false, badKey = false;
 const fake = http.createServer((req, res) => {
@@ -89,7 +96,8 @@ const fake = http.createServer((req, res) => {
       body = [
         ...WEEKS.map(d => CHECK(1, 45, 1350, d)),
         CHECK(2, 20, 400, WEEKS[2]), CHECK(2, 20, 400, WEEKS[3]),
-        ...WEEKS.map(d => CHECK(3, 40, 1400, d)),
+        // Iron's first Fingercheck check covered two weeks: 80 hrs on one check.
+        CHECK(3, 80, 2800, WEEKS[1], 14), CHECK(3, 40, 1400, WEEKS[2]), CHECK(3, 40, 1400, WEEKS[3]),
         ...WEEKS.map(d => CHECK(4, 40, 2307.69, d)),
         CHECK(1, 0, 61234.56, '2026-09-11'),
         CHECK(99, 30, 600, WEEKS[0])
@@ -176,6 +184,7 @@ async function run() {
   t('shop hours per week averages each person over the weeks they were paid (32.5)', shop.hours_per_week === 32.5, shop);
   t('shop hours per year is that times 52 (1690)', shop.hours_per_year === 1690, shop);
   t('shows how many weeks of data there are', shop.weeks_of_data === 4, shop);
+  t('a two-week check counts as two weeks (40 hrs/wk, not 53)', r.body.groups.direct_field.hours_per_week === 40, r.body.groups.direct_field);
   t('field average is 35', r.body.groups.direct_field.avg_wage === 35, r.body.groups.direct_field);
   // 80,000 / 2,080 = 38.46
   t('salaried office person counts in head count and hours, not the wage average', r.body.groups.office.headcount === 1 && r.body.groups.office.avg_wage === null && r.body.groups.office.salaried === 1 && r.body.groups.office.hours_per_week === 40, r.body.groups.office);
