@@ -64,6 +64,8 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/recipients',          requireAdmin, require('./routes/recipients'));
 app.use('/api/settings/prices',     requireAdmin, require('./routes/prices'));
 app.use('/api/settings/proposal-defaults', requireAdmin, require('./routes/proposal_defaults'));
+// Readable by everyone signed in; only an admin or the controller can save (checked in the route).
+app.use('/api/settings/wage-rates', require('./routes/company_wages'));
 app.use('/api/contacts',            requireAdmin, require('./routes/contacts'));
 app.use('/api/crm', require('./routes/crm'));
 // Server-to-server door for the CRM (the unlinked queue). Guarded inside by CRM_KEY,

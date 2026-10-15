@@ -427,6 +427,10 @@ function createEstimate(ownerId, ownerName, body) {
   }
   // Seed proposal Notes/Terms from the admin-set defaults (settings_kv), only when empty.
   seedProposalDefaults(id);
+  // Copy the current company wage rates (Settings > Company Wage Rates) into the
+  // new estimate. Before any are saved this does nothing and the estimate gets
+  // the original built-in defaults the first time its wage rates are opened.
+  require('../lib/company_wages').seedNewEstimate(id);
   return id;
 }
 
