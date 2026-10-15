@@ -132,4 +132,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log('rrfab-bid listening on', PORT));
+app.listen(PORT, () => {
+  console.log('rrfab-bid listening on', PORT);
+  // Test copy only: pull live data once. Does nothing in the live app.
+  require('./lib/test_copy').startupPull();
+});
