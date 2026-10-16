@@ -191,6 +191,17 @@ async function run() {
   t('an existing estimate is untouched', JSON.stringify(before) === JSON.stringify(after));
   t('company rates are untouched', JSON.stringify(ratesBefore.current) === JSON.stringify(ratesAfter.current));
   t('company rates switch is untouched', ratesBefore.live === ratesAfter.live);
+
+  // ---- test copy never writes to QuickBooks ----
+  process.env.TEST_COPY = '1';
+  const q = require('../lib/qbo');
+  let msg = '';
+  try { await q.createCustomer('Should Not Exist'); } catch (e) { msg = e.message; }
+  t('test copy refuses to create a customer', /test copy/i.test(msg), msg);
+  msg = '';
+  try { await q.createProject({ name: 'x', customerId: '1' }); } catch (e) { msg = e.message; }
+  t('test copy refuses to create a project', /test copy/i.test(msg), msg);
+  delete process.env.TEST_COPY;
 }
 
 run()
