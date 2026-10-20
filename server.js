@@ -69,6 +69,7 @@ app.use('/api/settings/wage-rates', require('./routes/company_wages'));
 // Fingercheck payroll pull. Averages readable by everyone signed in; pulling,
 // per-employee pay and group tags are admin or controller only (checked in the route).
 app.use('/api/settings/fingercheck', require('./routes/fingercheck'));
+app.use('/api/settings/qbo-overhead', require('./routes/qbo_overhead'));
 // Superadmin-only full database copy, used to load the test copy. Checked in the route.
 app.use('/api/settings/snapshot', require('./routes/snapshot'));
 // Test copy only: load a database and make set-password links. 404 in the live app.
