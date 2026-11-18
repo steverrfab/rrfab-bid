@@ -6,7 +6,7 @@ const calc = require('../lib/calc');
 const { computeProcess } = require('../lib/calc_process');
 const { parseKiss, parseKissToTakeoff } = require('../lib/kiss');
 const { parseTemplate } = require('../lib/parser');
-const { buildProposalView } = require('../lib/proposal_lines');
+const { buildProposalView, proposalFinancials } = require('../lib/proposal_lines');
 const { generateProposalBuffer } = require('../lib/pdf');
 const { sendReadyToSubmit, sendResubmitNotification, sendWonNotification } = require('../lib/email');
 const { buildWonJobPayload, pushWonJobToTracker, fetchTrackerJobStatus } = require('../lib/tracker_push');
@@ -158,7 +158,13 @@ function loadFullEstimate(id, opts = {}) {
     try { r.changes = r.changes ? JSON.parse(r.changes) : []; }
     catch (e) { r.changes = []; }
   }
-  return { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines, resubmits };
+  const bundle = { estimate: est, overrides, shapes, plates, misc, wages, extras, computed, standardExclusions, siteExclusions, processLines, processAddcosts, processComputed, manualLines, lineVisibility, clientLines, resubmits };
+  // The Client Proposal's own totals, so the Project tab and Margin Analysis can
+  // show the same numbers the dashboard uses. Only bids flagged
+  // proposal_drives_totals (new bids) use them; see lib/proposal_lines.js.
+  try { bundle.proposalTotals = proposalFinancials(bundle); }
+  catch (err) { bundle.proposalTotals = null; }
+  return bundle;
 }
 
 // ---- OWNERSHIP CHECK ----
@@ -217,6 +223,8 @@ router.param('id', (req, res, next, id) => {
 // total (process-only uses subtotal + O&P, before sales tax).
 function sellPretax(bundle) {
   const e = bundle.estimate;
+  const pf = proposalFinancials(bundle);
+  if (pf.drives) return pf.revenue;
   const c = bundle.computed || {};
   const pc = bundle.processComputed || {};
   const ptw = (e.price_to_win != null && e.price_to_win !== '') ? (+e.price_to_win || 0) : null;
@@ -373,7 +381,12 @@ router.get('/tax-summary', (req, res) => {
     const pc = bundle.processComputed || {};
     const isPO = e.job_type === 'process_only';
     let taxBase, taxRate, taxAmount;
-    if (isPO) {
+    const pf = proposalFinancials(bundle);
+    if (pf.drives) {
+      taxBase = pf.revenue;
+      taxRate = pf.taxRate;
+      taxAmount = pf.tax;
+    } else if (isPO) {
       taxBase = (+pc.subTotal || 0) + (+pc.opAmt || 0);
       taxRate = +e.po_tax_pct || 0;
       taxAmount = +pc.taxAmt || 0;
@@ -410,8 +423,8 @@ router.post('/', (req, res) => {
 // Calendar's Start bid, which creates it for the calendar bid's estimator.
 function createEstimate(ownerId, ownerName, body) {
   const stmt = db.prepare(`INSERT INTO estimates
-    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1)`);
+    (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed, proposal_drives_totals)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1, 1)`);
   const info = stmt.run(ownerId);
   const id = info.lastInsertRowid;
   if (body && Object.keys(body).length) {
@@ -1067,6 +1080,9 @@ function cloneEstimateRow(src, projectSuffix) {
   // created_by is not a saveable column, so carry the owner over here. Without
   // this a copy had no owner and vanished from the estimator's own list.
   if (src.created_by) db.prepare('UPDATE estimates SET created_by = ? WHERE id = ?').run(src.created_by, newId);
+  // A copy or revision keeps its source's totals rule, so copying an older bid
+  // never changes what its numbers show (migration 071).
+  db.prepare('UPDATE estimates SET proposal_drives_totals = ? WHERE id = ?').run(+src.proposal_drives_totals === 1 ? 1 : 0, newId);
   copyEstimateChildren(src.id, newId);
   return newId;
 }
@@ -1202,9 +1218,10 @@ router.post('/:id/alternates', (req, res) => {
 
   const stmt = db.prepare(`INSERT INTO estimates
     (processing_rate, fab_rate, paint_rate, consumables_rate, handling_rate, galv_rate, created_by, confirmed,
-     is_alternate, parent_estimate_id, alt_label, alt_position, job_type, status)
-    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1, 1, ?, ?, ?, ?, 'Draft')`);
-  const info = stmt.run(req.user.userId, id, label, maxPos + 1, jobType);
+     is_alternate, parent_estimate_id, alt_label, alt_position, job_type, status, proposal_drives_totals)
+    VALUES (0, 85, 0.08, 0.03, 0.05, 1.00, ?, 1, 1, ?, ?, ?, ?, 'Draft', ?)`);
+  // An alternate follows its base bid's totals rule (old bid -> old rule).
+  const info = stmt.run(req.user.userId, id, label, maxPos + 1, jobType, +parent.proposal_drives_totals === 1 ? 1 : 0);
   const altId = info.lastInsertRowid;
   if (jobType === 'process_only') seedProcessOnlyDefaults(altId);
   // Inherit the base bid's project identity so an alternate needs no project tab.
